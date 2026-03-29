@@ -8,7 +8,8 @@ export function generateOrganizationPrompt(files: FileMetadata[], targetDir: str
     name: f.name,
     ext: f.extension,
     size: f.size,
-    lastModified: f.lastModified.toISOString()
+    lastModified: f.lastModified.toISOString(),
+    ...(f.contentSample ? { contentSample: f.contentSample } : {})
   }));
 
   const defaultInstructions = `
@@ -23,7 +24,6 @@ export function generateOrganizationPrompt(files: FileMetadata[], targetDir: str
 
   // Prompt Sandwich Architecture
   
-  // Top Bun (System Rules)
   const systemRules = `You are Filedromat, an AI file system organizer. You must return valid JSON. You must not delete or rename files, only move them. Your target paths must be relative to ${targetDir}. Return a list of actions with 'fileName', 'targetPath', and 'reason'.`;
   
   // The Meat (User Intent)
@@ -41,6 +41,5 @@ export function generateOrganizationPrompt(files: FileMetadata[], targetDir: str
 export function generateRefinementSystemPrompt(targetDir: string): string {
   return `You are Filedromat, an AI file system organizer. You must return valid JSON. You must not delete or rename files, only move them. Your target paths must be relative to ${targetDir}. Return a list of actions with 'fileName', 'targetPath', and 'reason'.
 
-CRITICAL RULE FOR REFINEMENT: 
 If the user provides feedback on a previous plan, prioritize their specific corrections over your original logic. Only change the paths mentioned or affected by the feedback. Keep the rest of the plan as similar as possible.`;
 }

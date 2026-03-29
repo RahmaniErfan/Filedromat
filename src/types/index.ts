@@ -4,6 +4,7 @@ export interface FileMetadata {
   extension: string;
   size: number;
   lastModified: Date;
+  contentSample?: string;
   mimeType?: string;
   hash?: string;
 }
@@ -20,6 +21,7 @@ export interface ActionPlan {
   status: 'pending' | 'approved' | 'rejected' | 'executed';
   actions: FileAction[];
   targetFolder?: string;
+  summary?: string;
 }
 
 export interface AIModel {
