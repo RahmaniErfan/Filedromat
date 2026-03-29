@@ -21,3 +21,9 @@ export interface ActionPlan {
   actions: FileAction[];
   targetFolder?: string;
 }
+
+export interface AIModel {
+  id: string;      // e.g., 'gemini-1.5-flash'
+  name: string;    // e.g., 'Gemini 1.5 Flash'
+  provider: 'google' | 'openai' | 'anthropic';
+}
