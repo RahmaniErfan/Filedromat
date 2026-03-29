@@ -1,6 +1,6 @@
 {
   "name": "filedromat",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "A cross-platform local file organizer that uses AI to propose folder structures.",
   "main": "dist/index.js",
   "bin": {
@@ -21,7 +21,7 @@
     "cli",
     "automation"
   ],
-  "author": "",
+  "author": "Erfan Rahmani",
   "license": "MIT",
   "dependencies": {
     "@ai-sdk/google": "^1.1.9",
