@@ -14,17 +14,25 @@ export function DirectoryBrowser({ initialPath = process.cwd(), onSelect, onCanc
   const [currentPath, setCurrentPath] = useState(resolve(initialPath));
   const [items, setItems] = useState<{label: string, value: string}[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [fileCount, setFileCount] = useState(0);
 
   useEffect(() => {
     try {
       const dirContents = readdirSync(currentPath);
+      let fCount = 0;
       const dirs = dirContents.filter(name => {
         try {
-          return statSync(join(currentPath, name)).isDirectory() && !name.startsWith('.');
+          if (name.startsWith('.')) return false; // skip hidden files
+          const stat = statSync(join(currentPath, name));
+          if (stat.isDirectory()) return true;
+          if (stat.isFile()) fCount++;
+          return false;
         } catch {
           return false;
         }
       });
+      
+      setFileCount(fCount);
       
       const selectItems = [
         { label: '📁 [Organize this directory]', value: '.' },
@@ -52,9 +60,11 @@ export function DirectoryBrowser({ initialPath = process.cwd(), onSelect, onCanc
   };
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" paddingBottom={1}>
       <Text color="cyan" bold>Browsing: {currentPath}</Text>
-      {error && <Text color="red">{error}</Text>}
+      <Text dimColor>↳ Contains {fileCount} file{fileCount === 1 ? '' : 's'}</Text>
+      
+      {error && <Box marginTop={1}><Text color="red">{error}</Text></Box>}
       {items.length > 0 && (
         <SelectInput items={items} onSelect={handleSelect} />
       )}

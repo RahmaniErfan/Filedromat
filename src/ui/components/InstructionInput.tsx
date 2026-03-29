@@ -6,18 +6,20 @@ import type { FileMetadata } from '../../types/index.js';
 
 interface InstructionInputProps {
   files: FileMetadata[];
+  deepWashEnabled?: boolean;
   onInstructionsSubmit: (instructions: string) => void;
   onCancel: () => void;
   onGlobalHotkey?: (input: string) => void;
 }
 
-export function InstructionInput({ files, onInstructionsSubmit, onCancel, onGlobalHotkey }: InstructionInputProps) {
+export function InstructionInput({ files, deepWashEnabled, onInstructionsSubmit, onCancel, onGlobalHotkey }: InstructionInputProps) {
   const [showRaw, setShowRaw] = useState(false);
   const [customMode, setCustomMode] = useState(false);
   const [customInput, setCustomInput] = useState('');
 
   const numFiles = files.length;
   const numTypes = new Set(files.map(f => f.extension)).size;
+  const filesWithContent = files.filter(f => f.contentSample).length;
 
   useInput((input, key) => {
     if (key.escape) {
@@ -75,7 +77,13 @@ export function InstructionInput({ files, onInstructionsSubmit, onCancel, onGlob
     <Box flexDirection="column" borderStyle="round" borderColor="cyan" padding={1}>
       <Text color="yellow" bold>🧺 Loading the Machine:</Text>
       <Text italic>We're sending {numFiles} filenames, {numTypes} file types, and timestamp data to the AI.</Text>
-      <Text dimColor>No file contents will be read.</Text>
+      {filesWithContent > 0 ? (
+        <Text color="cyan">Deep wash extracted content from {filesWithContent} safe files.</Text>
+      ) : deepWashEnabled ? (
+        <Text color="yellow">Deep Wash attempt made, but no supported text files were found to read.</Text>
+      ) : (
+        <Text dimColor>No file contents will be read.</Text>
+      )}
       
       {showRaw && (
         <Box marginTop={1} padding={1} borderStyle="single" borderColor="gray">

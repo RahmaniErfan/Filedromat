@@ -31,21 +31,29 @@ export function ActionPlanView({ plan, targetPath, onConfirm }: ActionPlanProps)
     { value: 'no', label: 'No, cancel' }
   ];
 
-  if (page < totalPages - 1) {
-    options.unshift({ value: 'next', label: `Next Page (${page + 1}/${totalPages})` });
-  }
   if (page > 0) {
     options.unshift({ value: 'prev', label: 'Previous Page' });
+  }
+  if (page < totalPages - 1) {
+    options.unshift({ value: 'next', label: `Next Page (${page + 1}/${totalPages})` });
   }
 
   return (
     <Box flexDirection="column">
+      {plan.summary && (
+        <Box borderStyle="round" borderColor="green" paddingX={1} marginBottom={1}>
+          <Text color="green" italic>Plan Summary: {plan.summary}</Text>
+        </Box>
+      )}
       <Box borderStyle="round" borderColor="blue" paddingX={1} flexDirection="column" marginBottom={1}>
         <Text bold color="blue">Proposed Actions ({plan.actions.length} total)</Text>
         {visibleActions.map((a, i) => (
-          <Text key={startIdx + i}>
-            {a.sourcePath.split('/').pop()} {'->'} {a.targetPath.replace(resolve(targetPath) + '/', '')}
-          </Text>
+          <Box key={startIdx + i} flexDirection="column" marginBottom={1}>
+            <Text>
+              {a.sourcePath.split('/').pop()} {'->'} {a.targetPath.replace(resolve(targetPath) + '/', '')}
+            </Text>
+            <Text dimColor>  └─ Reason: {a.reason}</Text>
+          </Box>
         ))}
         {plan.actions.length > PAGE_SIZE && (
           <Text dimColor>--- Page {page + 1} of {totalPages} ---</Text>

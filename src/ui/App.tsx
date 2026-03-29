@@ -13,11 +13,13 @@ import { ActionPlanView } from './components/ActionPlanView.js';
 import { SettingsView } from './components/SettingsView.js';
 import { InstructionInput } from './components/InstructionInput.js';
 import { RefineInput } from './components/RefineInput.js';
+import { ScanOptions } from './components/ScanOptions.js';
 import type { ActionPlan, FileMetadata } from '../types/index.js';
 
 type Mode = 
   | 'MAIN_MENU' 
   | 'ORGANIZE_INPUT_PATH' 
+  | 'ORGANIZE_OPTIONS'
   | 'ORGANIZE_SCANNING'
   | 'ORGANIZE_INSTRUCTIONS'
   | 'ORGANIZE_PROPOSING'
@@ -40,6 +42,8 @@ export function App() {
   
   // Organize state
   const [targetPath, setTargetPath] = useState(process.cwd());
+  const [deepWash, setDeepWash] = useState(false);
+  const [maxDepth, setMaxDepth] = useState(1);
   const [scannedFiles, setScannedFiles] = useState<FileMetadata[]>([]);
   const [promptInstructions, setPromptInstructions] = useState('');
   const [plan, setPlan] = useState<ActionPlan | null>(null);
@@ -58,7 +62,7 @@ export function App() {
 
   useInput((input, key) => {
     // Basic global hotkeys (be careful not to override TextInput controls)
-    const textInputModes: Mode[] = ['SETTINGS_API_KEY', 'ORGANIZE_INPUT_PATH', 'ORGANIZE_INSTRUCTIONS', 'ORGANIZE_REFINE_INPUT'];
+    const textInputModes: Mode[] = ['SETTINGS_API_KEY', 'ORGANIZE_INPUT_PATH', 'ORGANIZE_OPTIONS', 'ORGANIZE_INSTRUCTIONS', 'ORGANIZE_REFINE_INPUT'];
     if (!textInputModes.includes(mode)) {
       handleGlobalHotkey(input);
       if (key.escape) setMode('MAIN_MENU');
@@ -88,9 +92,15 @@ export function App() {
   const submitPath = async (val: string) => {
     const path = val || process.cwd();
     setTargetPath(path);
+    setMode('ORGANIZE_OPTIONS');
+  };
+
+  const submitScan = async (options: { deepWash: boolean; maxDepth: number }) => {
+    setDeepWash(options.deepWash);
+    setMaxDepth(options.maxDepth);
     setMode('ORGANIZE_SCANNING');
     try {
-      const files = await scanDirectory(resolve(path));
+      const files = await scanDirectory(resolve(targetPath), options.deepWash, options.maxDepth);
       setScannedFiles(files);
       if (files.length === 0) {
         setError('No files found to organize.');
@@ -279,6 +289,14 @@ export function App() {
               />
             )}
 
+            {mode === 'ORGANIZE_OPTIONS' && (
+              <ScanOptions 
+                onComplete={submitScan}
+                onCancel={() => setMode('ORGANIZE_INPUT_PATH')}
+                onGlobalHotkey={handleGlobalHotkey}
+              />
+            )}
+
             {mode === 'ORGANIZE_SCANNING' && (
               <Box>
                 <Text color="cyan"><Spinner type="dots" /> Scanning files in {targetPath}...</Text>
@@ -288,8 +306,9 @@ export function App() {
             {mode === 'ORGANIZE_INSTRUCTIONS' && (
               <InstructionInput 
                 files={scannedFiles}
+                deepWashEnabled={deepWash}
                 onInstructionsSubmit={handleInstructionsSubmit}
-                onCancel={() => setMode('MAIN_MENU')}
+                onCancel={() => setMode('ORGANIZE_OPTIONS')}
                 onGlobalHotkey={handleGlobalHotkey}
               />
             )}
