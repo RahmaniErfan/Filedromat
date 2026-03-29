@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useInput } from 'ink';
 import SelectInput from 'ink-select-input';
 import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
@@ -26,25 +26,31 @@ export function SettingsView({
   handleSettingsMenu,
   handleSelectModel
 }: SettingsViewProps) {
+  useInput((input, key) => {
+    if (mode === 'SETTINGS_API_KEY' && key.escape) {
+      handleSettingsMenu({ value: 'back' });
+    }
+  });
+
   return (
     <Box flexDirection="column">
       {mode === 'SETTINGS_MENU' && (
         <React.Fragment>
           <Text>Settings:</Text>
-          <SelectInput
-            items={[
-              { value: 'update_key', label: 'Update Gemini API Key' },
-              { value: 'change_model', label: `Change Gemini Model (Current: ${config?.geminiModel || DEFAULT_MODEL})` },
-              { value: 'back', label: 'Back to Main Menu' }
-            ]}
-            onSelect={handleSettingsMenu}
-          />
+            <SelectInput
+              items={[
+                { value: 'update_key', label: '[k] Update Gemini API Key' },
+                { value: 'change_model', label: `[m] Change Gemini Model (Current: ${config?.geminiModel || DEFAULT_MODEL})` },
+                { value: 'back', label: '[b] Back to Main Menu' }
+              ]}
+              onSelect={handleSettingsMenu}
+            />
         </React.Fragment>
       )}
 
       {mode === 'SETTINGS_API_KEY' && (
         <React.Fragment>
-          <Text>Enter your Gemini API Key:</Text>
+          <Text>Enter your Gemini API Key: <Text dimColor>(Press ESC to go back)</Text></Text>
           <Box>
             <Text color="green">{'> '} </Text>
             <TextInput value={apiKeyInput} onChange={setApiKeyInput} onSubmit={submitApiKey} mask="*" />

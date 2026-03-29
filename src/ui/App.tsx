@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Text, useApp } from 'ink';
+import { Box, Text, useApp, useInput } from 'ink';
 import SelectInput from 'ink-select-input';
 import Spinner from 'ink-spinner';
 import { resolve } from 'node:path';
@@ -42,6 +42,21 @@ export function App() {
   // Settings state
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [models, setModels] = useState<any[]>([]);
+
+  const handleGlobalHotkey = (input: string) => {
+    if (input === 'q') exit();
+    if (input === 's') setMode('SETTINGS_MENU');
+    if (input === 'd') setMode('MAIN_MENU');
+    if (input === 'o') handleMainMenu({ value: 'organize' });
+  };
+
+  useInput((input, key) => {
+    // Basic global hotkeys (be careful not to override TextInput controls)
+    if (mode !== 'SETTINGS_API_KEY' && mode !== 'ORGANIZE_INPUT_PATH') {
+      handleGlobalHotkey(input);
+      if (key.escape) setMode('MAIN_MENU');
+    }
+  });
 
   useEffect(() => {
     loadConfig().then(c => setConfig(c)).catch(e => setError(e.message));
@@ -178,7 +193,7 @@ export function App() {
 
   return (
     <Box flexDirection="column" padding={1}>
-      <Header />
+      <Header mode={mode} config={config} />
       
       {error && (
         <Box marginBottom={1} borderStyle="round" borderColor="red" paddingX={1}>
@@ -186,68 +201,109 @@ export function App() {
         </Box>
       )}
 
-      {mode === 'MAIN_MENU' && (
-        <Box flexDirection="column">
-          <Text>Select an action:</Text>
-          <SelectInput
-            items={[
-              { value: 'organize', label: 'Organize Directory' },
-              { value: 'settings', label: 'Settings' },
-              { value: 'exit', label: 'Exit' }
-            ]}
-            onSelect={handleMainMenu}
-          />
-        </Box>
-      )}
-
-      {mode === 'ORGANIZE_INPUT_PATH' && (
-        <FileSelection targetPath={targetPath} setTargetPath={setTargetPath} submitPath={submitPath} />
-      )}
-
-      {mode === 'ORGANIZE_SCANNING' && (
-        <Box>
-          <Text color="green"><Spinner type="dots" /> Scanning files in {targetPath}...</Text>
-        </Box>
-      )}
-
-      {mode === 'ORGANIZE_PROPOSING' && (
-        <Box>
-          <Text color="yellow"><Spinner type="dots" /> AI is proposing a folder structure for {scannedFiles.length} files...</Text>
-        </Box>
-      )}
-
-      {mode === 'ORGANIZE_CONFIRM' && plan && (
-        <ActionPlanView plan={plan} targetPath={targetPath} onConfirm={handleConfirmPlan} />
-      )}
-
-      {mode === 'ORGANIZE_EXECUTING' && (
-        <Box>
-          <Text color="green"><Spinner type="dots" /> Executing reorganization...</Text>
-        </Box>
-      )}
-
-      {mode === 'DONE' && (
-        <Box flexDirection="column">
-          <Text color="green" bold>{organizeResult}</Text>
-          <Box marginTop={1}>
-            <Text>Press Enter to return to Main Menu.</Text>
+      <Box flexDirection={mode === 'MAIN_MENU' ? 'row' : 'column'} flexGrow={1}>
+        {mode === 'MAIN_MENU' && (
+          <Box width="45%" borderStyle="single" borderColor="cyan" padding={1} flexDirection="column" marginRight={2}>
+            <Box marginLeft={2} marginBottom={1}><Text color="cyan" bold>Statistics</Text></Box>
+            <Box flexDirection="column" marginLeft={1}>
+              <Box marginBottom={1}>
+                <Text color="gray">🔮 Model:      </Text>
+                <Text color={config?.geminiModel ? 'cyan' : 'red'}>{config?.geminiModel || 'Not chosen'}</Text>
+              </Box>
+              <Box marginBottom={1}>
+                <Text color="gray">🔑 API Key:    </Text>
+                <Text color={config?.geminiApiKey ? 'green' : 'red'}>{config?.geminiApiKey ? 'Connected' : 'Missing'}</Text>
+              </Box>
+              <Box marginBottom={1}>
+                <Text color="gray">📂 Last Path:  </Text>
+                <Text color="cyan">{targetPath === process.cwd() ? './' : targetPath}</Text>
+              </Box>
+            </Box>
           </Box>
-          <SelectInput items={[{value: 'back', label: 'Back to Main Menu'}]} onSelect={() => setMode('MAIN_MENU')} />
-        </Box>
-      )}
+        )}
 
-      {mode.startsWith('SETTINGS_') && (
-        <SettingsView
-          mode={mode}
-          config={config}
-          apiKeyInput={apiKeyInput}
-          setApiKeyInput={setApiKeyInput}
-          submitApiKey={submitApiKey}
-          models={models}
-          handleSettingsMenu={handleSettingsMenu}
-          handleSelectModel={handleSelectModel}
-        />
-      )}
+        <Box width={mode === 'MAIN_MENU' ? "55%" : "100%"} borderStyle="single" borderColor="cyan" padding={1} flexDirection="column">
+          <Box marginLeft={2} marginBottom={1}><Text color="cyan" bold>{mode === 'MAIN_MENU' ? 'Quick Actions' : 'Action Panel'}</Text></Box>
+          
+          <Box marginLeft={1} flexDirection="column">
+            {mode === 'MAIN_MENU' && (
+              <Box flexDirection="column">
+                <SelectInput
+                  items={[
+                    { value: 'organize', label: '[o] Organize Directory' },
+                    { value: 'settings', label: '[s] Settings' },
+                    { value: 'exit', label: '[q] Quit' }
+                  ]}
+                  onSelect={handleMainMenu}
+                />
+              </Box>
+            )}
+
+            {mode === 'ORGANIZE_INPUT_PATH' && (
+              <FileSelection 
+                targetPath={targetPath} 
+                setTargetPath={setTargetPath} 
+                submitPath={submitPath} 
+                onCancel={() => setMode('MAIN_MENU')}
+                onGlobalHotkey={handleGlobalHotkey}
+              />
+            )}
+
+            {mode === 'ORGANIZE_SCANNING' && (
+              <Box>
+                <Text color="cyan"><Spinner type="dots" /> Scanning files in {targetPath}...</Text>
+              </Box>
+            )}
+
+            {mode === 'ORGANIZE_PROPOSING' && (
+              <Box>
+                <Text color="yellow"><Spinner type="dots" /> AI is proposing a folder structure for {scannedFiles.length} files...</Text>
+              </Box>
+            )}
+
+            {mode === 'ORGANIZE_CONFIRM' && plan && (
+              <ActionPlanView plan={plan} targetPath={targetPath} onConfirm={handleConfirmPlan} />
+            )}
+
+            {mode === 'ORGANIZE_EXECUTING' && (
+              <Box>
+                <Text color="green"><Spinner type="dots" /> Executing reorganization...</Text>
+              </Box>
+            )}
+
+            {mode === 'DONE' && (
+              <Box flexDirection="column">
+                <Text color="green" bold>{organizeResult}</Text>
+                <Box marginTop={1}>
+                  <Text>Press Enter to return to Main Menu.</Text>
+                </Box>
+                <SelectInput items={[{value: 'back', label: 'Back to Main Menu'}]} onSelect={() => setMode('MAIN_MENU')} />
+              </Box>
+            )}
+
+            {mode.startsWith('SETTINGS_') && (
+              <SettingsView
+                mode={mode}
+                config={config}
+                apiKeyInput={apiKeyInput}
+                setApiKeyInput={setApiKeyInput}
+                submitApiKey={submitApiKey}
+                models={models}
+                handleSettingsMenu={handleSettingsMenu}
+                handleSelectModel={handleSelectModel}
+              />
+            )}
+          </Box>
+        </Box>
+      </Box>
+
+      <Box marginTop={1} paddingX={1} borderStyle="single" borderColor="cyan">
+        <Text color="cyan" bold>o:</Text><Text color="gray"> organize  </Text>
+        <Text color="cyan" bold>d:</Text><Text color="gray"> dashboard  </Text>
+        <Text color="cyan" bold>s:</Text><Text color="gray"> settings  </Text>
+        <Text color="cyan" bold>ESC:</Text><Text color="gray"> back  </Text>
+        <Text color="cyan" bold>q:</Text><Text color="gray"> quit  </Text>
+      </Box>
     </Box>
   );
 }
