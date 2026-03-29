@@ -1,9 +1,9 @@
-import { generateObject } from 'ai';
+import { generateObject, type CoreMessage } from 'ai';
 import { google } from '@ai-sdk/google';
 import { z } from 'zod';
 import { join, resolve } from 'node:path';
 import type { FileMetadata, ActionPlan, AIModel } from '../../types/index.js';
-import { generateOrganizationPrompt } from './prompts.js';
+import { generateOrganizationPrompt, generateRefinementSystemPrompt } from './prompts.js';
 import { AIError, ConfigError } from '../errors/ai.js';
 
 /**
@@ -109,9 +109,10 @@ export async function listModels(apiKey: string): Promise<{ name: string; displa
 export async function proposeOrganization(
   files: FileMetadata[], 
   targetDir: string,
-  modelId: string = 'gemini-2.5-flash'
+  modelId: string = 'gemini-2.5-flash',
+  instructions: string = ''
 ): Promise<ActionPlan> {
-  const prompt = generateOrganizationPrompt(files, targetDir);
+  const prompt = generateOrganizationPrompt(files, targetDir, instructions);
 
   let result;
   try {
@@ -145,6 +146,94 @@ export async function proposeOrganization(
     const sourcePath = originalFile ? originalFile.path : join(targetDir, action.fileName);
     
     // Ensure targetPath is absolute
+    const absoluteTargetPath = resolve(targetDir, action.targetPath);
+
+    return {
+      sourcePath,
+      targetPath: absoluteTargetPath,
+      reason: action.reason
+    };
+  });
+
+  return {
+    id: Math.random().toString(36).substring(7),
+    createdAt: new Date(),
+    status: 'pending',
+    actions: absoluteActions,
+    targetFolder: targetDir
+  };
+}
+
+/**
+ * Refines an organization plan based on user feedback.
+ */
+export async function refineOrganization(
+  files: FileMetadata[],
+  targetDir: string,
+  previousPlan: ActionPlan,
+  feedback: string,
+  modelId: string = 'gemini-2.5-flash'
+): Promise<ActionPlan> {
+  const systemPrompt = generateRefinementSystemPrompt(targetDir);
+
+  // We convert the previous absolute paths back to relative for the AI
+  const previousActionsRelative = previousPlan.actions.map(action => ({
+    fileName: action.sourcePath.split('/').pop(),
+    targetPath: action.targetPath.replace(resolve(targetDir) + '/', ''),
+    reason: action.reason
+  }));
+
+  const fileContext = files.map(f => ({
+    name: f.name,
+    ext: f.extension,
+    size: f.size,
+    lastModified: f.lastModified.toISOString()
+  }));
+
+  const messages: CoreMessage[] = [
+    {
+      role: 'user',
+      content: `File List:\n${JSON.stringify(fileContext)}\n\nPlease propose an initial organization plan.`
+    },
+    {
+      role: 'assistant',
+      content: JSON.stringify({ actions: previousActionsRelative })
+    },
+    {
+      role: 'user',
+      content: `User Feedback: ${feedback}\n\nPlease update the organization plan based strictly on this feedback.`
+    }
+  ];
+
+  let result;
+  try {
+    result = await generateObject({
+      model: google(modelId),
+      schema: z.object({
+        actions: z.array(z.object({
+          fileName: z.string().describe('The name of the file being moved'),
+          targetPath: z.string().describe('The relative target path from the target directory'),
+          reason: z.string().describe('Short reason for the categorization')
+        }))
+      }),
+      system: systemPrompt,
+      messages: messages,
+    });
+  } catch (error: any) {
+    if (error.message?.includes('quota')) {
+      throw new AIError('Gemini API Quota exceeded. Please try again later or check your plan.', 'QUOTA_EXCEEDED');
+    }
+    if (error.message?.includes('API key')) {
+      throw new ConfigError('Invalid Gemini API Key. Please check your config.');
+    }
+    throw new AIError(`AI Refinement Failed: ${error.message}`);
+  }
+
+  const { object } = result;
+
+  const absoluteActions = object.actions.map(action => {
+    const originalFile = files.find(f => f.name === action.fileName);
+    const sourcePath = originalFile ? originalFile.path : join(targetDir, action.fileName);
     const absoluteTargetPath = resolve(targetDir, action.targetPath);
 
     return {

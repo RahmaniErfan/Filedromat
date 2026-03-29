@@ -3,7 +3,7 @@ import type { FileMetadata } from '../../types/index.js';
 /**
  * Generates the prompt for Gemini to categorize files.
  */
-export function generateOrganizationPrompt(files: FileMetadata[], targetDir: string): string {
+export function generateOrganizationPrompt(files: FileMetadata[], targetDir: string, customInstructions?: string): string {
   const fileContext = files.map(f => ({
     name: f.name,
     ext: f.extension,
@@ -11,19 +11,36 @@ export function generateOrganizationPrompt(files: FileMetadata[], targetDir: str
     lastModified: f.lastModified.toISOString()
   }));
 
-  return `
-    You are Filedromat, an AI file system organizer.
-    You will be provided with a list of files in ${targetDir}.
-    Your task is to propose a modern, logical folder structure to organize these files.
-
-    Rules:
+  const defaultInstructions = `
     - Group by type (e.g., Photos, Documents, Code, Archives).
     - If there are many related files, create sub-folders (e.g., Photos/2024, Photos/Vacation).
     - Be concise in your naming.
-    - Return a list of actions with 'fileName' and 'targetPath'.
-    - 'targetPath' must be relative to ${targetDir}.
+  `.trim();
 
-    Data:
-    Files: ${JSON.stringify(fileContext)}
-  `;
+  const activeInstructions = customInstructions && customInstructions.trim() !== '' 
+    ? customInstructions 
+    : defaultInstructions;
+
+  // Prompt Sandwich Architecture
+  
+  // Top Bun (System Rules)
+  const systemRules = `You are Filedromat, an AI file system organizer. You must return valid JSON. You must not delete or rename files, only move them. Your target paths must be relative to ${targetDir}. Return a list of actions with 'fileName', 'targetPath', and 'reason'.`;
+  
+  // The Meat (User Intent)
+  const userIntent = `User Request:\nOrganize the provided files according to these instructions:\n${activeInstructions}`;
+  
+  // Bottom Bun (Data)
+  const dataPayload = `File List:\n${JSON.stringify(fileContext)}`;
+
+  return `${systemRules}\n\n${userIntent}\n\n${dataPayload}`;
+}
+
+/**
+ * Generates the system prompt for refining an organization plan.
+ */
+export function generateRefinementSystemPrompt(targetDir: string): string {
+  return `You are Filedromat, an AI file system organizer. You must return valid JSON. You must not delete or rename files, only move them. Your target paths must be relative to ${targetDir}. Return a list of actions with 'fileName', 'targetPath', and 'reason'.
+
+CRITICAL RULE FOR REFINEMENT: 
+If the user provides feedback on a previous plan, prioritize their specific corrections over your original logic. Only change the paths mentioned or affected by the feedback. Keep the rest of the plan as similar as possible.`;
 }
