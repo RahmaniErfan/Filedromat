@@ -27,6 +27,7 @@ export function ActionPlanView({ plan, targetPath, onConfirm }: ActionPlanProps)
 
   const options = [
     { value: 'yes', label: 'Yes, apply changes' },
+    { value: 'refine', label: 'Wait, change something... (Adjust with AI)' },
     { value: 'no', label: 'No, cancel' }
   ];
 

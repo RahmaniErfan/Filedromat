@@ -4,21 +4,26 @@ import SelectInput from 'ink-select-input';
 import Spinner from 'ink-spinner';
 import { resolve } from 'node:path';
 import { scanDirectory } from '../core/fs/scanner.js';
-import { proposeOrganization, fetchLiveModels } from '../core/ai/provider.js';
+import { proposeOrganization, refineOrganization, fetchLiveModels } from '../core/ai/provider.js';
 import { executePlan } from '../core/fs/executor.js';
 import { loadConfig, saveConfig, DEFAULT_MODEL } from '../config/index.js';
 import { Header } from './components/Header.js';
 import { FileSelection } from './components/FileSelection.js';
 import { ActionPlanView } from './components/ActionPlanView.js';
 import { SettingsView } from './components/SettingsView.js';
+import { InstructionInput } from './components/InstructionInput.js';
+import { RefineInput } from './components/RefineInput.js';
 import type { ActionPlan, FileMetadata } from '../types/index.js';
 
 type Mode = 
   | 'MAIN_MENU' 
   | 'ORGANIZE_INPUT_PATH' 
   | 'ORGANIZE_SCANNING'
+  | 'ORGANIZE_INSTRUCTIONS'
   | 'ORGANIZE_PROPOSING'
   | 'ORGANIZE_CONFIRM'
+  | 'ORGANIZE_REFINE_INPUT'
+  | 'ORGANIZE_REFINING'
   | 'ORGANIZE_EXECUTING'
   | 'SETTINGS_MENU'
   | 'SETTINGS_API_KEY'
@@ -36,6 +41,7 @@ export function App() {
   // Organize state
   const [targetPath, setTargetPath] = useState(process.cwd());
   const [scannedFiles, setScannedFiles] = useState<FileMetadata[]>([]);
+  const [promptInstructions, setPromptInstructions] = useState('');
   const [plan, setPlan] = useState<ActionPlan | null>(null);
   const [organizeResult, setOrganizeResult] = useState<string | null>(null);
 
@@ -52,7 +58,8 @@ export function App() {
 
   useInput((input, key) => {
     // Basic global hotkeys (be careful not to override TextInput controls)
-    if (mode !== 'SETTINGS_API_KEY' && mode !== 'ORGANIZE_INPUT_PATH') {
+    const textInputModes: Mode[] = ['SETTINGS_API_KEY', 'ORGANIZE_INPUT_PATH', 'ORGANIZE_INSTRUCTIONS', 'ORGANIZE_REFINE_INPUT'];
+    if (!textInputModes.includes(mode)) {
       handleGlobalHotkey(input);
       if (key.escape) setMode('MAIN_MENU');
     }
@@ -90,9 +97,30 @@ export function App() {
         setMode('MAIN_MENU');
         return;
       }
-      setMode('ORGANIZE_PROPOSING');
+      setMode('ORGANIZE_INSTRUCTIONS');
     } catch (e: any) {
       setError(`Scan failed: ${e.message}`);
+      setMode('MAIN_MENU');
+    }
+  };
+
+  const handleInstructionsSubmit = (instructions: string) => {
+    setPromptInstructions(instructions);
+    setMode('ORGANIZE_PROPOSING');
+  };
+
+  const handleRefineSubmit = async (feedback: string) => {
+    setMode('ORGANIZE_REFINING');
+    try {
+      const modelId = config?.geminiModel || DEFAULT_MODEL;
+      const apiKey = config?.geminiApiKey || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY = apiKey;
+      
+      const newPlan = await refineOrganization(scannedFiles, resolve(targetPath), plan!, feedback, modelId);
+      setPlan(newPlan);
+      setMode('ORGANIZE_CONFIRM');
+    } catch (e: any) {
+      setError(`AI Refinement failed: ${e.message}`);
       setMode('MAIN_MENU');
     }
   };
@@ -105,7 +133,7 @@ export function App() {
           const apiKey = config?.geminiApiKey || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
           process.env.GOOGLE_GENERATIVE_AI_API_KEY = apiKey;
           
-          const p = await proposeOrganization(scannedFiles, resolve(targetPath), modelId);
+          const p = await proposeOrganization(scannedFiles, resolve(targetPath), modelId, promptInstructions);
           setPlan(p);
           setMode('ORGANIZE_CONFIRM');
         } catch (e: any) {
@@ -130,6 +158,8 @@ export function App() {
         setError(`Execution failed: ${e.message}`);
         setMode('MAIN_MENU');
       }
+    } else if (item.value === 'refine') {
+      setMode('ORGANIZE_REFINE_INPUT');
     } else {
       setError('Organization cancelled by user.');
       setMode('MAIN_MENU');
@@ -255,6 +285,15 @@ export function App() {
               </Box>
             )}
 
+            {mode === 'ORGANIZE_INSTRUCTIONS' && (
+              <InstructionInput 
+                files={scannedFiles}
+                onInstructionsSubmit={handleInstructionsSubmit}
+                onCancel={() => setMode('MAIN_MENU')}
+                onGlobalHotkey={handleGlobalHotkey}
+              />
+            )}
+
             {mode === 'ORGANIZE_PROPOSING' && (
               <Box>
                 <Text color="yellow"><Spinner type="dots" /> AI is proposing a folder structure for {scannedFiles.length} files...</Text>
@@ -263,6 +302,19 @@ export function App() {
 
             {mode === 'ORGANIZE_CONFIRM' && plan && (
               <ActionPlanView plan={plan} targetPath={targetPath} onConfirm={handleConfirmPlan} />
+            )}
+
+            {mode === 'ORGANIZE_REFINE_INPUT' && (
+              <RefineInput 
+                onRefineSubmit={handleRefineSubmit}
+                onCancel={() => setMode('ORGANIZE_CONFIRM')}
+              />
+            )}
+
+            {mode === 'ORGANIZE_REFINING' && (
+              <Box>
+                <Text color="yellow"><Spinner type="dots" /> AI is refining the folder structure based on your feedback...</Text>
+              </Box>
             )}
 
             {mode === 'ORGANIZE_EXECUTING' && (
