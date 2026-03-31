@@ -97,14 +97,14 @@ app.post('/api/propose', async (c) => {
 });
 
 app.post('/api/refine', async (c) => {
-  const { files, targetDir, previousPlan, feedback, modelId } = await c.req.json();
-  try {
-    const config = await loadConfig();
-    if (config?.geminiApiKey) {
-      process.env.GOOGLE_GENERATIVE_AI_API_KEY = config.geminiApiKey;
-    }
-
-    const plan = await refineOrganization(files, resolve(targetDir), previousPlan, feedback, modelId);
+    const { files, targetDir, previousPlan, feedback, modelId, history } = await c.req.json();
+    try {
+      const config = await loadConfig();
+      if (config?.geminiApiKey) {
+        process.env.GOOGLE_GENERATIVE_AI_API_KEY = config.geminiApiKey;
+      }
+  
+      const plan = await refineOrganization(files, resolve(targetDir), previousPlan, feedback, modelId, history);
     return c.json(plan);
   } catch (e: any) {
     return c.json({ error: e.message }, 500);

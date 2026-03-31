@@ -5,9 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-03-29
+## [1.0.0] - 2026-03-31
 
 ### Added
+- **AI Conversation Memory**: Context-aware refinements (remembers your last 4 messages).
+- **Persistent Interaction History**: Full chat log in the refinement phase.
+- **Input Guardrails**: 500-character limit and real-time counter.
+- **Immediate UI Feedback**: Instant message display and auto-scrolling.
 - **Deep Wash Pipeline**: Advanced file content extraction for higher accuracy.
   - Parallel background scanning with sequential API processing (50-file batches).
   - First-page PDF text extraction support via `pdf-parse`.

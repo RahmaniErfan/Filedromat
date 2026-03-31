@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -16,10 +16,11 @@ import {
   Play,
   Sparkles
 } from 'lucide-react';
-import type { ActionPlan, FileAction } from '../../../src/types/index.js';
+import type { ActionPlan, FileAction, HistoryItem } from '../../../src/types/index.js';
 
 interface SplitViewProps {
   plan: ActionPlan;
+  history: HistoryItem[];
   onRefine: (feedback: string) => void;
   onExecute: () => void;
   onExport: (format: 'json' | 'bash') => void;
@@ -106,13 +107,18 @@ const TreeItem = ({ item, depth = 0 }: { item: any, depth?: number }) => {
   );
 };
 
-export function SplitView({ plan, onRefine, onExecute, onExport, isRefining }: SplitViewProps) {
+export function SplitView({ plan, history, onRefine, onExecute, onExport, isRefining }: SplitViewProps) {
   const [feedback, setFeedback] = useState('');
   const treeData = useMemo(() => buildTree(plan.actions, plan.targetFolder || ''), [plan]);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [history, isRefining]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (feedback.trim()) {
+    if (feedback.trim() && !isRefining && feedback.length <= 500) {
       onRefine(feedback);
       setFeedback('');
     }
@@ -164,43 +170,72 @@ export function SplitView({ plan, onRefine, onExecute, onExport, isRefining }: S
               Refinement Chat
             </CardTitle>
           </CardHeader>
-          <CardContent className="flex-1 overflow-auto p-4 space-y-4">
-            <div className="bg-primary/5 p-4 rounded-2xl text-sm border border-primary/10">
-              <p className="font-semibold text-primary mb-2 flex items-center gap-2">
-                <Sparkles className="w-4 h-4" />
-                Filedromat AI
-              </p>
-              <div className="space-y-3">
-                <p className="text-sm italic border-l-2 border-primary/20 pl-3 py-1 bg-white/40 rounded-r-md">
-                   "{plan.summary}"
+          <CardContent className="flex-1 overflow-auto p-4 space-y-4 custom-scrollbar">
+            {history.map((item) => (
+              <div 
+                key={item.id} 
+                className={`p-4 rounded-2xl text-sm border animate-in fade-in slide-in-from-bottom-2 duration-300 ${
+                  item.role === 'user' 
+                    ? 'bg-muted/50 border-muted ml-8 rounded-tr-none' 
+                    : 'bg-primary/5 border-primary/10 mr-8 rounded-tl-none'
+                }`}
+              >
+                <p className={`font-semibold mb-2 flex items-center gap-2 ${
+                  item.role === 'user' ? 'text-muted-foreground' : 'text-primary'
+                }`}>
+                  {item.role === 'user' ? (
+                    <MessageSquare className="w-4 h-4" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                  {item.role === 'user' ? 'You' : 'Filedromat AI'}
                 </p>
-                <p className="text-muted-foreground leading-relaxed text-sm">
-                  I've categorized your files based on the structure above. 
-                  Want me to change anything? Just say so!
-                </p>
+                <div className="space-y-3">
+                  {item.role === 'assistant' ? (
+                    <p className="text-sm italic border-l-2 border-primary/20 pl-3 py-1 bg-white/40 rounded-r-md">
+                       "{item.content}"
+                    </p>
+                  ) : (
+                    <p className="leading-relaxed">
+                      {item.content}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
+            ))}
             
             {isRefining && (
-              <div className="flex items-center gap-2 text-sm text-primary animate-pulse">
+              <div className="flex items-center gap-2 text-sm text-primary animate-pulse py-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Folding files into new structure...
               </div>
             )}
+            <div ref={chatEndRef} />
           </CardContent>
-          <CardFooter className="p-4 bg-muted/10 border-t">
+          <CardFooter className="p-4 bg-muted/10 border-t flex flex-col gap-2">
+            <div className="flex justify-between items-center w-full px-1">
+              <span className={`text-[10px] font-medium transition-colors ${feedback.length > 450 ? 'text-destructive animate-pulse' : 'text-muted-foreground'}`}>
+                {feedback.length} / 500 characters
+              </span>
+              {feedback.length > 500 && (
+                <span className="text-[10px] text-destructive font-bold uppercase tracking-wider">
+                  Too long! Please shorten.
+                </span>
+              )}
+            </div>
             <form onSubmit={handleSubmit} className="w-full relative">
               <Input 
                 placeholder="Actually, group images by month..." 
-                className="pr-12 h-12 rounded-xl bg-background border-primary/20 focus:border-primary transition-all"
+                className={`pr-12 h-12 rounded-xl bg-background border-primary/20 focus:border-primary transition-all ${feedback.length > 500 ? 'border-destructive focus:border-destructive shadow-[0_0_0_2px_rgba(239,68,68,0.1)]' : ''}`}
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
                 disabled={isRefining}
+                maxLength={510} // allow slightly over for the 'too long' state feedback
               />
               <Button 
                 type="submit" 
                 size="icon" 
-                disabled={!feedback.trim() || isRefining}
+                disabled={!feedback.trim() || isRefining || feedback.length > 500}
                 className="absolute right-1.5 top-1.5 h-9 w-9 rounded-lg shadow-lg"
               >
                 <Send className="w-4 h-4" />

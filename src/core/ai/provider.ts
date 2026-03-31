@@ -2,7 +2,7 @@ import { generateObject, generateText, type CoreMessage } from 'ai';
 import { google } from '@ai-sdk/google';
 import { z } from 'zod';
 import { join, resolve } from 'node:path';
-import type { FileMetadata, ActionPlan, AIModel } from '../../types/index.js';
+import type { FileMetadata, ActionPlan, AIModel, HistoryItem } from '../../types/index.js';
 import { generateOrganizationPrompt, generateRefinementSystemPrompt } from './prompts.js';
 import { AIError, ConfigError } from '../errors/ai.js';
 
@@ -199,7 +199,8 @@ export async function refineOrganization(
   targetDir: string,
   previousPlan: ActionPlan,
   feedback: string,
-  modelId: string = 'gemini-2.5-flash'
+  modelId: string = 'gemini-2.5-flash',
+  history: HistoryItem[] = []
 ): Promise<ActionPlan> {
   const systemPrompt = generateRefinementSystemPrompt(targetDir);
 
@@ -211,6 +212,13 @@ export async function refineOrganization(
 
   const allAbsoluteActions = [];
   const planSummaries: string[] = [];
+
+  // Sliding window: last 4 items (2 turns of user/assistant)
+  const recentHistory = history.slice(-4);
+  const historyMessages: CoreMessage[] = recentHistory.map(h => ({
+    role: h.role,
+    content: h.content
+  }));
 
   for (const chunk of chunkedFiles) {
     // Filter previous actions specific to this chunk's files
@@ -231,17 +239,10 @@ export async function refineOrganization(
     }));
 
     const messages: CoreMessage[] = [
+      ...historyMessages,
       {
         role: 'user',
-        content: `File List:\n${JSON.stringify(fileContext)}\n\nPlease propose an initial organization plan.`
-      },
-      {
-        role: 'assistant',
-        content: JSON.stringify({ actions: previousActionsRelative })
-      },
-      {
-        role: 'user',
-        content: `User Feedback: ${feedback}\n\nPlease update the organization plan based strictly on this feedback.`
+        content: `File List:\n${JSON.stringify(fileContext)}\n\nCurrent Plan:\n${JSON.stringify(previousActionsRelative)}\n\nUser Feedback: ${feedback}\n\nPlease update the organization plan based strictly on this feedback.`
       }
     ];
 

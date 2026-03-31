@@ -16,7 +16,7 @@ import {
   executePlan, 
   exportPlan 
 } from './lib/api';
-import type { ActionPlan, FileMetadata } from '../../src/types/index.js';
+import type { ActionPlan, FileMetadata, HistoryItem } from '../../src/types/index.js';
 
 type Phase = 
   | 'LOBBY' 
@@ -38,6 +38,7 @@ function App() {
   const [scanProgress, setScanProgress] = useState(0);
   const [plan, setPlan] = useState<ActionPlan | null>(null);
   const [isRefining, setIsRefining] = useState(false);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
 
   useEffect(() => {
     fetchConfig().then(setConfig);
@@ -68,6 +69,23 @@ function App() {
     try {
       const p = await proposeOrganization(scanFiles, targetPath, config.geminiModel || 'gemini-2.5-flash', instructions);
       setPlan(p);
+      
+      const newHistory: HistoryItem[] = [
+        {
+          id: Math.random().toString(36).substring(7),
+          role: 'user',
+          content: instructions,
+          timestamp: new Date().toISOString()
+        },
+        {
+          id: Math.random().toString(36).substring(7),
+          role: 'assistant',
+          content: p.summary || 'Initial organization plan proposed.',
+          planId: p.id,
+          timestamp: new Date().toISOString()
+        }
+      ];
+      setHistory(newHistory);
       setPhase('REFINEMENT');
     } catch (e: any) {
       alert(`Proposal failed: ${e.message}`);
@@ -78,9 +96,37 @@ function App() {
   const handleRefine = async (feedback: string) => {
     if (!plan) return;
     setIsRefining(true);
+    
+    // Add User message immediately
+    const userHistoryItem: HistoryItem = {
+      id: Math.random().toString(36).substring(7),
+      role: 'user',
+      content: feedback,
+      timestamp: new Date().toISOString()
+    };
+    setHistory(prev => [...prev, userHistoryItem]);
+
     try {
-      const p = await refineOrganization(scanFiles, targetPath, plan, feedback, config.geminiModel || 'gemini-2.5-flash');
+      // Pass the updated history (including the NEW user item) to the API
+      const p = await refineOrganization(
+        scanFiles, 
+        targetPath, 
+        plan, 
+        feedback, 
+        config.geminiModel || 'gemini-2.5-flash', 
+        [...history, userHistoryItem]
+      );
       setPlan(p);
+      
+      const assistantHistoryItem: HistoryItem = {
+        id: Math.random().toString(36).substring(7),
+        role: 'assistant',
+        content: p.summary || 'Plan refined based on feedback.',
+        planId: p.id,
+        timestamp: new Date().toISOString()
+      };
+      
+      setHistory(prev => [...prev, assistantHistoryItem]);
     } catch (e: any) {
       alert(`Refinement failed: ${e.message}`);
     } finally {
@@ -181,6 +227,7 @@ function App() {
         {phase === 'REFINEMENT' && plan && (
           <SplitView 
             plan={plan} 
+            history={history}
             onRefine={handleRefine} 
             onExecute={handleExecute} 
             onExport={handleExport}

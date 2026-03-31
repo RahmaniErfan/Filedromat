@@ -1,4 +1,4 @@
-import type { ActionPlan, FileMetadata, AIModel } from '../../../src/types/index.js';
+import type { ActionPlan, FileMetadata, AIModel, HistoryItem } from '../../../src/types/index.js';
 
 async function handleResponse(res: Response) {
   if (!res.ok) {
@@ -81,12 +81,13 @@ export async function refineOrganization(
   targetDir: string,
   previousPlan: ActionPlan,
   feedback: string,
-  modelId: string
+  modelId: string,
+  history: HistoryItem[]
 ): Promise<ActionPlan> {
   const res = await fetch('/api/refine', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ files, targetDir, previousPlan, feedback, modelId }),
+    body: JSON.stringify({ files, targetDir, previousPlan, feedback, modelId, history }),
   });
   return handleResponse(res);
 }

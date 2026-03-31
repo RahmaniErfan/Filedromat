@@ -1,3 +1,11 @@
+export interface HistoryItem {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string; // The prompt or the summary
+  planId?: string; // Links to an ActionPlan if applicable
+  timestamp: string;
+}
+
 export interface FileMetadata {
   path: string;
   name: string;
