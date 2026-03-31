@@ -89,7 +89,7 @@ app.post('/api/propose', async (c) => {
       process.env.GOOGLE_GENERATIVE_AI_API_KEY = config.geminiApiKey;
     }
     
-    const plan = await proposeOrganization(files, resolve(targetDir), modelId, instructions);
+    const plan = await proposeOrganization(files, resolve(targetDir), modelId, instructions, config?.parallelCalls);
     return c.json(plan);
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
@@ -104,7 +104,7 @@ app.post('/api/refine', async (c) => {
         process.env.GOOGLE_GENERATIVE_AI_API_KEY = config.geminiApiKey;
       }
   
-      const plan = await refineOrganization(files, resolve(targetDir), previousPlan, feedback, modelId, history);
+      const plan = await refineOrganization(files, resolve(targetDir), previousPlan, feedback, modelId, history, config?.parallelCalls);
     return c.json(plan);
   } catch (e: any) {
     return c.json({ error: e.message }, 500);

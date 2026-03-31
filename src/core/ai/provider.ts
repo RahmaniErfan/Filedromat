@@ -110,60 +110,70 @@ export async function proposeOrganization(
   files: FileMetadata[], 
   targetDir: string,
   modelId: string = 'gemini-2.5-flash',
-  instructions: string = ''
+  instructions: string = '',
+  parallelCalls: number = 3
 ): Promise<ActionPlan> {
   const BATCH_SIZE = 50;
   const chunkedFiles: FileMetadata[][] = [];
   for (let i = 0; i < files.length; i += BATCH_SIZE) {
     chunkedFiles.push(files.slice(i, i + BATCH_SIZE));
   }
-
-  const allAbsoluteActions = [];
+ 
+  const allAbsoluteActions: any[] = [];
   const planSummaries: string[] = [];
-
-  for (const chunk of chunkedFiles) {
-    const prompt = generateOrganizationPrompt(chunk, targetDir, instructions);
-
-    let result;
-    try {
-      result = await generateObject({
-        model: google(modelId),
-        schema: z.object({
-          planSummary: z.string().describe('A brief 1-sentence summary of the folder structures you created.'),
-          actions: z.array(z.object({
-            fileName: z.string().describe('The name of the file being moved'),
-            targetPath: z.string().describe('The relative destination FOLDER path from the target directory (e.g. "Documents/PDFs")'),
-            reason: z.string().describe('Short reason for the categorization')
-          }))
-        }),
-        prompt: prompt,
+ 
+  // Process in parallel batches of size `parallelCalls`
+  for (let i = 0; i < chunkedFiles.length; i += parallelCalls) {
+    const currentBatch = chunkedFiles.slice(i, i + parallelCalls);
+ 
+    const results = await Promise.all(
+      currentBatch.map(async (chunk) => {
+        const prompt = generateOrganizationPrompt(chunk, targetDir, instructions);
+ 
+        try {
+          const result = await generateObject({
+            model: google(modelId),
+            schema: z.object({
+              planSummary: z.string().describe('A brief 1-sentence summary of the folder structures you created.'),
+              actions: z.array(z.object({
+                fileName: z.string().describe('The name of the file being moved'),
+                targetPath: z.string().describe('The relative destination FOLDER path from the target directory (e.g. "Documents/PDFs")'),
+                reason: z.string().describe('Short reason for the categorization')
+              }))
+            }),
+            prompt: prompt,
+          });
+          return { chunk, result };
+        } catch (error: any) {
+          if (error.message?.includes('quota')) {
+            throw new AIError('Gemini API Quota exceeded. Please try again later or check your plan.', 'QUOTA_EXCEEDED');
+          }
+          if (error.message?.includes('API key')) {
+            throw new ConfigError('Invalid Gemini API Key. Please check your config.');
+          }
+          throw new AIError(`AI Analysis Failed: ${error.message}`);
+        }
+      })
+    );
+ 
+    for (const { chunk, result } of results) {
+      const { object } = result;
+ 
+      const absoluteActions = object.actions.map(action => {
+        const originalFile = chunk.find(f => f.name === action.fileName);
+        const sourcePath = originalFile ? originalFile.path : join(targetDir, action.fileName);
+        const absoluteTargetPath = join(resolve(targetDir), action.targetPath, action.fileName);
+ 
+        return {
+          sourcePath,
+          targetPath: absoluteTargetPath,
+          reason: action.reason
+        };
       });
-    } catch (error: any) {
-      if (error.message?.includes('quota')) {
-        throw new AIError('Gemini API Quota exceeded. Please try again later or check your plan.', 'QUOTA_EXCEEDED');
-      }
-      if (error.message?.includes('API key')) {
-        throw new ConfigError('Invalid Gemini API Key. Please check your config.');
-      }
-      throw new AIError(`AI Analysis Failed: ${error.message}`);
+ 
+      planSummaries.push(object.planSummary);
+      allAbsoluteActions.push(...absoluteActions);
     }
-
-    const { object } = result;
-
-    const absoluteActions = object.actions.map(action => {
-      const originalFile = chunk.find(f => f.name === action.fileName);
-      const sourcePath = originalFile ? originalFile.path : join(targetDir, action.fileName);
-      const absoluteTargetPath = join(resolve(targetDir), action.targetPath, action.fileName);
-
-      return {
-        sourcePath,
-        targetPath: absoluteTargetPath,
-        reason: action.reason
-      };
-    });
-
-    planSummaries.push(object.planSummary);
-    allAbsoluteActions.push(...absoluteActions);
   }
 
   allAbsoluteActions.sort((a, b) => a.targetPath.localeCompare(b.targetPath));
@@ -200,93 +210,103 @@ export async function refineOrganization(
   previousPlan: ActionPlan,
   feedback: string,
   modelId: string = 'gemini-2.5-flash',
-  history: HistoryItem[] = []
+  history: HistoryItem[] = [],
+  parallelCalls: number = 3
 ): Promise<ActionPlan> {
   const systemPrompt = generateRefinementSystemPrompt(targetDir);
-
+ 
   const BATCH_SIZE = 50;
   const chunkedFiles: FileMetadata[][] = [];
   for (let i = 0; i < files.length; i += BATCH_SIZE) {
     chunkedFiles.push(files.slice(i, i + BATCH_SIZE));
   }
-
-  const allAbsoluteActions = [];
+ 
+  const allAbsoluteActions: any[] = [];
   const planSummaries: string[] = [];
-
+ 
   // Sliding window: last 4 items (2 turns of user/assistant)
   const recentHistory = history.slice(-4);
   const historyMessages: CoreMessage[] = recentHistory.map(h => ({
     role: h.role,
     content: h.content
   }));
-
-  for (const chunk of chunkedFiles) {
-    // Filter previous actions specific to this chunk's files
-    const previousActionsRelative = previousPlan.actions
-      .filter(action => chunk.some(f => f.path === action.sourcePath))
-      .map(action => ({
-        fileName: action.sourcePath.split('/').pop(),
-        targetPath: action.targetPath.replace(resolve(targetDir) + '/', ''),
-        reason: action.reason
-      }));
-
-    const fileContext = chunk.map(f => ({
-      name: f.name,
-      ext: f.extension,
-      size: f.size,
-      lastModified: typeof f.lastModified === 'string' ? f.lastModified : f.lastModified.toISOString(),
-      ...(f.contentSample ? { contentSample: f.contentSample } : {})
-    }));
-
-    const messages: CoreMessage[] = [
-      ...historyMessages,
-      {
-        role: 'user',
-        content: `File List:\n${JSON.stringify(fileContext)}\n\nCurrent Plan:\n${JSON.stringify(previousActionsRelative)}\n\nUser Feedback: ${feedback}\n\nPlease update the organization plan based strictly on this feedback.`
-      }
-    ];
-
-    let result;
-    try {
-      result = await generateObject({
-        model: google(modelId),
-        schema: z.object({
-          planSummary: z.string().describe('A brief 1-sentence summary of the folder structures you created.'),
-          actions: z.array(z.object({
-            fileName: z.string().describe('The name of the file being moved'),
-            targetPath: z.string().describe('The relative destination FOLDER path from the target directory (e.g. "Documents/PDFs")'),
-            reason: z.string().describe('Short reason for the categorization')
-          }))
-        }),
-        system: systemPrompt,
-        messages: messages,
+ 
+  // Process in parallel batches of size `parallelCalls`
+  for (let i = 0; i < chunkedFiles.length; i += parallelCalls) {
+    const currentBatch = chunkedFiles.slice(i, i + parallelCalls);
+ 
+    const results = await Promise.all(
+      currentBatch.map(async (chunk) => {
+        // Filter previous actions specific to this chunk's files
+        const previousActionsRelative = previousPlan.actions
+          .filter(action => chunk.some(f => f.path === action.sourcePath))
+          .map(action => ({
+            fileName: action.sourcePath.split('/').pop(),
+            targetPath: action.targetPath.replace(resolve(targetDir) + '/', ''),
+            reason: action.reason
+          }));
+ 
+        const fileContext = chunk.map(f => ({
+          name: f.name,
+          ext: f.extension,
+          size: f.size,
+          lastModified: typeof f.lastModified === 'string' ? f.lastModified : f.lastModified.toISOString(),
+          ...(f.contentSample ? { contentSample: f.contentSample } : {})
+        }));
+ 
+        const messages: CoreMessage[] = [
+          ...historyMessages,
+          {
+            role: 'user',
+            content: `File List:\n${JSON.stringify(fileContext)}\n\nCurrent Plan:\n${JSON.stringify(previousActionsRelative)}\n\nUser Feedback: ${feedback}\n\nPlease update the organization plan based strictly on this feedback.`
+          }
+        ];
+ 
+        try {
+          const result = await generateObject({
+            model: google(modelId),
+            schema: z.object({
+              planSummary: z.string().describe('A brief 1-sentence summary of the folder structures you created.'),
+              actions: z.array(z.object({
+                fileName: z.string().describe('The name of the file being moved'),
+                targetPath: z.string().describe('The relative destination FOLDER path from the target directory (e.g. "Documents/PDFs")'),
+                reason: z.string().describe('Short reason for the categorization')
+              }))
+            }),
+            system: systemPrompt,
+            messages: messages,
+          });
+          return { chunk, result };
+        } catch (error: any) {
+          if (error.message?.includes('quota')) {
+            throw new AIError('Gemini API Quota exceeded. Please try again later or check your plan.', 'QUOTA_EXCEEDED');
+          }
+          if (error.message?.includes('API key')) {
+            throw new ConfigError('Invalid Gemini API Key. Please check your config.');
+          }
+          throw new AIError(`AI Refinement Failed: ${error.message}`);
+        }
+      })
+    );
+ 
+    for (const { chunk, result } of results) {
+      const { object } = result;
+ 
+      const absoluteActions = object.actions.map(action => {
+        const originalFile = chunk.find(f => f.name === action.fileName);
+        const sourcePath = originalFile ? originalFile.path : join(targetDir, action.fileName);
+        const absoluteTargetPath = join(resolve(targetDir), action.targetPath, action.fileName);
+ 
+        return {
+          sourcePath,
+          targetPath: absoluteTargetPath,
+          reason: action.reason
+        };
       });
-    } catch (error: any) {
-      if (error.message?.includes('quota')) {
-        throw new AIError('Gemini API Quota exceeded. Please try again later or check your plan.', 'QUOTA_EXCEEDED');
-      }
-      if (error.message?.includes('API key')) {
-        throw new ConfigError('Invalid Gemini API Key. Please check your config.');
-      }
-      throw new AIError(`AI Refinement Failed: ${error.message}`);
+ 
+      planSummaries.push(object.planSummary);
+      allAbsoluteActions.push(...absoluteActions);
     }
-
-    const { object } = result;
-
-    const absoluteActions = object.actions.map(action => {
-      const originalFile = chunk.find(f => f.name === action.fileName);
-      const sourcePath = originalFile ? originalFile.path : join(targetDir, action.fileName);
-      const absoluteTargetPath = join(resolve(targetDir), action.targetPath, action.fileName);
-
-      return {
-        sourcePath,
-        targetPath: absoluteTargetPath,
-        reason: action.reason
-      };
-    });
-
-    planSummaries.push(object.planSummary);
-    allAbsoluteActions.push(...absoluteActions);
   }
 
   allAbsoluteActions.sort((a, b) => a.targetPath.localeCompare(b.targetPath));

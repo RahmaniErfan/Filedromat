@@ -8,6 +8,7 @@ const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 export interface AppConfig {
   geminiApiKey: string;
   geminiModel?: string;
+  parallelCalls?: number;
 }
 
 export const DEFAULT_MODEL = 'gemini-2.5-flash';

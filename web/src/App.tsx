@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Binary } from 'lucide-react';
 import { Lobby } from './components/Lobby';
 import { DirectorySelector } from './components/DirectorySelector';
 import { ScanConfig } from './components/ScanConfig';
@@ -208,16 +209,25 @@ function App() {
         )}
 
         {phase === 'PROPOSING' && (
-          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 page-enter">
-            <div className="relative">
-               <div className="w-24 h-24 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-               <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-primary via-accent to-primary animate-pulse" />
+          <div className="flex flex-col items-center justify-center min-h-[80vh] gap-8 page-enter">
+            <div className="relative group">
+              <div className="absolute -inset-4 bg-primary/20 rounded-full blur-2xl animate-pulse" />
+              <div className="relative w-48 h-48 rounded-full border-8 border-primary/20 flex items-center justify-center bg-card shadow-2xl laundry-card overflow-hidden">
+                <div className="absolute inset-0 bg-primary/10 animate-slosh" style={{ height: '40%', bottom: 0, top: 'auto' }} />
+                <div className="absolute inset-2 rounded-full border-4 border-dashed border-primary/10 animate-wash-spin" />
+                <Binary className="w-16 h-16 text-primary/80 animate-slosh" />
+                
+                {/* Bubbles */}
+                <div className="bubble w-4 h-4 left-1/4" style={{ animationDelay: '0s' }} />
+                <div className="bubble w-3 h-3 left-1/2" style={{ animationDelay: '1.5s' }} />
+                <div className="bubble w-5 h-5 left-3/4" style={{ animationDelay: '2s' }} />
+              </div>
             </div>
-            <div className="text-center space-y-2">
+            <div className="text-center space-y-4">
               <h1 className="text-4xl font-bold tracking-tight bg-linear-to-br from-primary to-accent bg-clip-text text-transparent">
-                AI is Folding your Load...
+                AI is Sorting your Laundry...
               </h1>
-              <p className="text-muted-foreground animate-pulse leading-relaxed max-w-sm">
+              <p className="text-muted-foreground animate-pulse leading-relaxed max-w-sm mx-auto">
                 Analyzing file contents and predicting the optimal closet arrangement.
               </p>
             </div>
