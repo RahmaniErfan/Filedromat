@@ -8,7 +8,7 @@ export function generateOrganizationPrompt(files: FileMetadata[], targetDir: str
     name: f.name,
     ext: f.extension,
     size: f.size,
-    lastModified: f.lastModified.toISOString(),
+    lastModified: typeof f.lastModified === 'string' ? f.lastModified : f.lastModified.toISOString(),
     ...(f.contentSample ? { contentSample: f.contentSample } : {})
   }));
 
@@ -24,7 +24,7 @@ export function generateOrganizationPrompt(files: FileMetadata[], targetDir: str
 
   // Prompt Sandwich Architecture
   
-  const systemRules = `You are Filedromat, an AI file system organizer. You must return valid JSON. You must not delete or rename files, only move them. Your target paths must be relative to ${targetDir}. Return a list of actions with 'fileName', 'targetPath', and 'reason'.`;
+  const systemRules = `You are Filedromat, an AI file system organizer. You must return valid JSON. You must not delete or rename files. Your target paths must be the relative FOLDER path (excluding filename) from ${targetDir}. Return a list of actions with 'fileName', 'targetPath', and 'reason'.`;
   
   // The Meat (User Intent)
   const userIntent = `User Request:\nOrganize the provided files according to these instructions:\n${activeInstructions}`;
@@ -39,7 +39,7 @@ export function generateOrganizationPrompt(files: FileMetadata[], targetDir: str
  * Generates the system prompt for refining an organization plan.
  */
 export function generateRefinementSystemPrompt(targetDir: string): string {
-  return `You are Filedromat, an AI file system organizer. You must return valid JSON. You must not delete or rename files, only move them. Your target paths must be relative to ${targetDir}. Return a list of actions with 'fileName', 'targetPath', and 'reason'.
+  return `You are Filedromat, an AI file system organizer. You must return valid JSON. You must not delete or rename files. Your target paths must be the relative FOLDER path (excluding filename) from ${targetDir}. Return a list of actions with 'fileName', 'targetPath', and 'reason'.
 
 If the user provides feedback on a previous plan, prioritize their specific corrections over your original logic. Only change the paths mentioned or affected by the feedback. Keep the rest of the plan as similar as possible.`;
 }

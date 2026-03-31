@@ -15,46 +15,51 @@ export async function scanDirectory(
   dirPath: string, 
   deepWash: boolean = false, 
   maxDepth: number = 1, 
-  currentDepth: number = 0
+  currentDepth: number = 0,
+  onProgress?: (count: number) => void
 ): Promise<FileMetadata[]> {
   const allFiles: FileMetadata[] = [];
   
-  try {
-    const entries = await readdir(dirPath, { withFileTypes: true });
+  const scan = async (currentPath: string, depth: number) => {
+    try {
+      const entries = await readdir(currentPath, { withFileTypes: true });
 
-    for (const entry of entries) {
-      if (entry.name.startsWith('.')) continue; // skip hidden files
+      for (const entry of entries) {
+        if (entry.name.startsWith('.')) continue; // skip hidden files
 
-      const entryPath = join(dirPath, entry.name);
+        const entryPath = join(currentPath, entry.name);
 
-      if (entry.isDirectory()) {
-        if (currentDepth < maxDepth) {
-          const subFiles = await scanDirectory(entryPath, deepWash, maxDepth, currentDepth + 1);
-          allFiles.push(...subFiles);
-        }
-      } else if (entry.isFile()) {
-        try {
-          const stats = await stat(entryPath);
-          const ext = extname(entry.name).slice(1).toLowerCase();
-          
-          const fileMeta: FileMetadata = {
-            path: entryPath,
-            name: entry.name,
-            extension: ext,
-            size: stats.size,
-            lastModified: stats.mtime
-          };
+        if (entry.isDirectory()) {
+          if (depth < maxDepth) {
+            await scan(entryPath, depth + 1);
+          }
+        } else if (entry.isFile()) {
+          try {
+            const stats = await stat(entryPath);
+            const ext = extname(entry.name).slice(1).toLowerCase();
+            
+            const fileMeta: FileMetadata = {
+              path: entryPath,
+              name: entry.name,
+              extension: ext,
+              size: stats.size,
+              lastModified: stats.mtime
+            };
 
-          allFiles.push(fileMeta);
-        } catch (error: any) {
-          console.warn(`[Warning] Failed to get stats for file: ${entry.name}. ${error.message}`);
+            allFiles.push(fileMeta);
+            if (onProgress) onProgress(allFiles.length);
+          } catch (error: any) {
+            console.warn(`[Warning] Failed to get stats for file: ${entry.name}. ${error.message}`);
+          }
         }
       }
+    } catch (error: any) {
+      if (error instanceof FileSystemError) throw error;
+      throw new FileSystemError(`Error scanning directory ${currentPath}: ${error.message}`);
     }
-  } catch (error: any) {
-    if (error instanceof FileSystemError) throw error;
-    throw new FileSystemError(`Error scanning directory ${dirPath}: ${error.message}`);
-  }
+  };
+
+  await scan(dirPath, currentDepth);
 
   // If in root call and deepWash is enabled, process safe files in batches
   if (currentDepth === 0 && deepWash) {
@@ -70,8 +75,6 @@ export async function scanDirectory(
           if (file.extension === 'pdf') {
             // @ts-ignore
             const pdfParse = (await import('pdf-parse')).default || await import('pdf-parse');
-            // If it's a namespace import, pdfParse might be the namespace object, but since it's CJS,
-            // default is standard or the module itself is standard.
             const parseFn = typeof pdfParse === 'function' ? pdfParse : (pdfParse as any).default;
             const dataBuffer = await readFile(file.path);
             const pdfData = await parseFn(dataBuffer, { max: 1 });

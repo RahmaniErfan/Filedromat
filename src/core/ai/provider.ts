@@ -132,7 +132,7 @@ export async function proposeOrganization(
           planSummary: z.string().describe('A brief 1-sentence summary of the folder structures you created.'),
           actions: z.array(z.object({
             fileName: z.string().describe('The name of the file being moved'),
-            targetPath: z.string().describe('The relative target path from the target directory'),
+            targetPath: z.string().describe('The relative destination FOLDER path from the target directory (e.g. "Documents/PDFs")'),
             reason: z.string().describe('Short reason for the categorization')
           }))
         }),
@@ -153,7 +153,7 @@ export async function proposeOrganization(
     const absoluteActions = object.actions.map(action => {
       const originalFile = chunk.find(f => f.name === action.fileName);
       const sourcePath = originalFile ? originalFile.path : join(targetDir, action.fileName);
-      const absoluteTargetPath = resolve(targetDir, action.targetPath);
+      const absoluteTargetPath = join(resolve(targetDir), action.targetPath, action.fileName);
 
       return {
         sourcePath,
@@ -226,7 +226,7 @@ export async function refineOrganization(
       name: f.name,
       ext: f.extension,
       size: f.size,
-      lastModified: f.lastModified.toISOString(),
+      lastModified: typeof f.lastModified === 'string' ? f.lastModified : f.lastModified.toISOString(),
       ...(f.contentSample ? { contentSample: f.contentSample } : {})
     }));
 
@@ -253,7 +253,7 @@ export async function refineOrganization(
           planSummary: z.string().describe('A brief 1-sentence summary of the folder structures you created.'),
           actions: z.array(z.object({
             fileName: z.string().describe('The name of the file being moved'),
-            targetPath: z.string().describe('The relative target path from the target directory'),
+            targetPath: z.string().describe('The relative destination FOLDER path from the target directory (e.g. "Documents/PDFs")'),
             reason: z.string().describe('Short reason for the categorization')
           }))
         }),
@@ -275,7 +275,7 @@ export async function refineOrganization(
     const absoluteActions = object.actions.map(action => {
       const originalFile = chunk.find(f => f.name === action.fileName);
       const sourcePath = originalFile ? originalFile.path : join(targetDir, action.fileName);
-      const absoluteTargetPath = resolve(targetDir, action.targetPath);
+      const absoluteTargetPath = join(resolve(targetDir), action.targetPath, action.fileName);
 
       return {
         sourcePath,
