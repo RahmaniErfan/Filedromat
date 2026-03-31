@@ -8,6 +8,7 @@ import { InstructionPhase } from './components/InstructionPhase';
 import { SplitView } from './components/SplitView';
 import { SettingsDialog } from './components/SettingsDialog';
 import { SuccessView } from './components/SuccessView';
+import { Header } from './components/Header';
 import { 
   fetchConfig, 
   saveConfig, 
@@ -145,6 +146,16 @@ function App() {
     }
   };
 
+  const handleReset = () => {
+    setPhase('LOBBY');
+    setTargetPath('');
+    setScanFiles([]);
+    setScanProgress(0);
+    setPlan(null);
+    setIsRefining(false);
+    setHistory([]);
+  };
+
   const handleExport = async (format: 'json' | 'bash') => {
     if (!plan) return;
     const result = await exportPlan(plan, format);
@@ -172,6 +183,8 @@ function App() {
 
   return (
     <div className="container mx-auto max-w-6xl py-8 min-h-screen relative overflow-x-hidden">
+      <Header phase={phase} onReset={handleReset} />
+      
       {/* Wash Cycle Phases */}
       <div className="w-full h-full min-h-[80vh]">
         {phase === 'LOBBY' && (

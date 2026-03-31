@@ -62,6 +62,15 @@ export function DirectorySelector({ onSelect, onBack }: DirectorySelectorProps) 
     e?.stopPropagation();
     console.log('[DirectorySelector] Suggestion clicked:', suggestion);
     const slashPath = suggestion.endsWith('/') ? suggestion : suggestion + '/';
+    
+    // If we click the EXACT same folder already in the input, close it
+    const normalizedCurrentPath = path.endsWith('/') ? path : path + '/';
+    if (normalizedCurrentPath === slashPath) {
+      console.log('[DirectorySelector] Re-clicked current path, closing suggestions');
+      setShowSuggestions(false);
+      return;
+    }
+
     setPath(slashPath);
     setSelectedIndex(-1);
     setShowSuggestions(true);

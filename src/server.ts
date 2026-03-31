@@ -135,7 +135,13 @@ app.get('/api/suggestions', async (c) => {
       }
     }
 
-    const sortedResults = Array.from(results).sort((a, b) => a.length - b.length || a.localeCompare(b));
+    const finalResults = Array.from(results).filter(res => {
+      const r = res.endsWith('/') ? res : res + '/';
+      const p = rawPath.endsWith('/') ? rawPath : rawPath + '/';
+      return r !== p;
+    });
+
+    const sortedResults = finalResults.sort((a, b) => a.length - b.length || a.localeCompare(b));
     return c.json(sortedResults.slice(0, 15)); // Limit to 15 suggestions
   } catch (e) {
     return c.json([]);
