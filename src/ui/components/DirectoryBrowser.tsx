@@ -36,7 +36,7 @@ export function DirectoryBrowser({ initialPath = process.cwd(), onSelect, onCanc
       
       const selectItems = [
         { label: '📁 [Organize this directory]', value: '.' },
-        { label: '⬅️  [Go Up / Parent Directory]', value: '..' },
+        { label: '📁 .. [Go Up / Parent Directory]', value: '..' },
         ...dirs.sort().map(d => ({ label: `📁 ${d}`, value: d })),
         { label: '❌ [Cancel]', value: '__cancel__' }
       ];
