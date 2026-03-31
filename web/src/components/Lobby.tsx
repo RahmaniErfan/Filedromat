@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Play, Settings, Binary, HardDrive, Thermometer } from 'lucide-react';
+import { Badge } from './ui/badge';
 
 interface LobbyProps {
   config: any;
@@ -9,7 +10,9 @@ interface LobbyProps {
 }
 
 export function Lobby({ config, onStart, onSettings }: LobbyProps) {
-  const isConfigured = !!config.geminiApiKey;
+  const hasGemini = !!config.geminiApiKey && typeof config.geminiApiKey === 'string' && config.geminiApiKey.trim().length > 10;
+  const hasAnthropic = !!config.anthropicApiKey && typeof config.anthropicApiKey === 'string' && config.anthropicApiKey.trim().length > 10;
+  const isConfigured = hasGemini || hasAnthropic;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] gap-8 page-enter">
@@ -35,7 +38,7 @@ export function Lobby({ config, onStart, onSettings }: LobbyProps) {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-3xl px-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 w-full max-w-4xl px-4">
         <Card className="laundry-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -44,29 +47,64 @@ export function Lobby({ config, onStart, onSettings }: LobbyProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-xl font-bold ${isConfigured ? 'text-green-500' : 'text-red-500'}`}>
+            <div className={`text-xl font-bold italic tracking-tight uppercase ${isConfigured ? 'text-green-500' : 'text-red-500'}`}>
               {isConfigured ? 'Ready to Wash' : 'Needs Detergent'}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {isConfigured ? 'Gemini AI connected' : 'API Key missing'}
+            <p className="text-xs text-muted-foreground mt-1 font-black uppercase tracking-widest opacity-60">
+              {isConfigured ? 'All Systems Operational' : 'API Keys Required'}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="laundry-card">
+        <Card className="laundry-card md:col-span-2 relative overflow-hidden group">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Binary className="w-4 h-4 text-blue-500" />
-              Fabric Type
+            <CardTitle className="text-sm font-medium flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Binary className="w-4 h-4 text-blue-500" />
+                Intelligence & Neural Link
+              </div>
+              <div className="flex gap-1.5 translate-x-2">
+                <Badge 
+                  variant="outline" 
+                  className={`text-[8px] font-black h-5 px-2 transition-all duration-500 ${
+                    hasGemini 
+                      ? 'bg-blue-500/10 text-blue-600 border-blue-500/20 shadow-sm shadow-blue-500/10' 
+                      : 'bg-muted/30 text-muted-foreground/30 border-transparent opacity-50 grayscale'
+                  }`}
+                >
+                  GEMINI
+                </Badge>
+                <Badge 
+                  variant="outline" 
+                  className={`text-[8px] font-black h-5 px-2 transition-all duration-500 ${
+                    hasAnthropic 
+                      ? 'bg-orange-500/10 text-orange-600 border-orange-500/20 shadow-sm shadow-orange-500/10' 
+                      : 'bg-muted/30 text-muted-foreground/30 border-transparent opacity-50 grayscale'
+                  }`}
+                >
+                  CLAUDE
+                </Badge>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold truncate">
-              {config.geminiModel || 'Default'}
+            <div className="flex items-center gap-3 mb-2">
+              <div className={`text-xl font-bold italic tracking-tight uppercase truncate max-w-[90%] ${isConfigured ? '' : 'text-muted-foreground/50 font-medium'}`}>
+                {isConfigured 
+                  ? (config.geminiModel || config.anthropicModel || 'DEFAULT ENGINE').toUpperCase()
+                  : 'ENGINE OFFLINE'}
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Currently selected AI model
-            </p>
+            <div className="flex items-center gap-2">
+               <div className={`w-1.5 h-1.5 rounded-full ${isConfigured && config.fallbackModelId ? 'bg-primary animate-pulse shadow-[0_0_8px_rgba(var(--primary),0.5)]' : (isConfigured ? 'bg-primary/50' : 'bg-muted-foreground/20')}`} />
+               <p className="text-xs text-muted-foreground mt-0.5 font-black uppercase tracking-widest opacity-60">
+                 {!isConfigured 
+                   ? 'Neural Link Required'
+                   : config.fallbackModelId 
+                     ? `RESILLIENT CLUSTER: ${config.fallbackModelId.toUpperCase()}` 
+                     : 'Single Neural Engine Active'}
+               </p>
+            </div>
           </CardContent>
         </Card>
 
@@ -78,9 +116,9 @@ export function Lobby({ config, onStart, onSettings }: LobbyProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">Local File System</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Recursive deep-cleaning enabled
+            <div className="text-xl font-bold italic tracking-tight uppercase">High-Capacity Drum</div>
+            <p className="text-xs text-muted-foreground mt-1 font-black uppercase tracking-widest opacity-60">
+              Deep Agitation Enabled
             </p>
           </CardContent>
         </Card>
@@ -99,7 +137,7 @@ export function Lobby({ config, onStart, onSettings }: LobbyProps) {
 
       {!isConfigured && (
         <p className="text-sm text-destructive animate-bounce">
-          ⚠️ Please add your Gemini API Key in Settings to start.
+          ⚠️ Please add your Gemini or Anthropic API Key in Settings to start.
         </p>
       )}
     </div>

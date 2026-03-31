@@ -38,9 +38,10 @@ app.post('/api/config', async (c) => {
 
 app.get('/api/models', async (c) => {
   const apiKey = c.req.query('apiKey');
+  const provider = (c.req.query('provider') as 'google' | 'anthropic') || 'google';
   if (!apiKey) return c.json({ error: 'API Key is required' }, 400);
   try {
-    const models = await fetchLiveModels('google', apiKey);
+    const models = await fetchLiveModels(provider, apiKey);
     return c.json(models);
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
@@ -155,8 +156,18 @@ app.post('/api/propose', async (c) => {
     if (config?.geminiApiKey) {
       process.env.GOOGLE_GENERATIVE_AI_API_KEY = config.geminiApiKey;
     }
+    if (config?.anthropicApiKey) {
+      process.env.ANTHROPIC_API_KEY = config.anthropicApiKey;
+    }
     
-    const plan = await proposeOrganization(files, resolve(targetDir), modelId, instructions, config?.parallelCalls);
+    const plan = await proposeOrganization(
+      files, 
+      resolve(targetDir), 
+      modelId, 
+      instructions, 
+      config?.parallelCalls,
+      config?.fallbackModelId
+    );
     return c.json(plan);
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
@@ -170,8 +181,20 @@ app.post('/api/refine', async (c) => {
       if (config?.geminiApiKey) {
         process.env.GOOGLE_GENERATIVE_AI_API_KEY = config.geminiApiKey;
       }
+      if (config?.anthropicApiKey) {
+        process.env.ANTHROPIC_API_KEY = config.anthropicApiKey;
+      }
   
-      const plan = await refineOrganization(files, resolve(targetDir), previousPlan, feedback, modelId, history, config?.parallelCalls);
+      const plan = await refineOrganization(
+        files, 
+        resolve(targetDir), 
+        previousPlan, 
+        feedback, 
+        modelId, 
+        history, 
+        config?.parallelCalls,
+        config?.fallbackModelId
+      );
     return c.json(plan);
   } catch (e: any) {
     return c.json({ error: e.message }, 500);

@@ -22,8 +22,8 @@ export async function saveConfig(config: any) {
   return handleResponse(res);
 }
 
-export async function fetchModels(apiKey: string): Promise<AIModel[]> {
-  const res = await fetch(`/api/models?apiKey=${encodeURIComponent(apiKey)}`);
+export async function fetchModels(apiKey: string, provider: 'google' | 'anthropic' = 'google'): Promise<AIModel[]> {
+  const res = await fetch(`/api/models?apiKey=${encodeURIComponent(apiKey)}&provider=${provider}`);
   return handleResponse(res);
 }
 

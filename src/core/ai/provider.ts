@@ -1,5 +1,7 @@
 import { generateObject, generateText, type CoreMessage } from 'ai';
 import { google } from '@ai-sdk/google';
+import { anthropic } from '@ai-sdk/anthropic';
+import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { join, resolve } from 'node:path';
 import type { FileMetadata, ActionPlan, AIModel, HistoryItem } from '../../types/index.js';
@@ -91,8 +93,38 @@ export async function fetchLiveModels(provider: 'google' | 'openai' | 'anthropic
     }
   }
 
-  // Placeholder for other providers
+  if (provider === 'anthropic') {
+    try {
+      const client = new Anthropic({ apiKey });
+      const response = await client.models.list();
+      
+      return response.data
+        .filter(m => m.type === 'model')
+        .map(m => ({
+          id: m.id,
+          name: m.display_name || m.id,
+          provider: 'anthropic' as const
+        }))
+        .sort((a, b) => {
+          // Put newer models first if possible, otherwise alphabetical
+          return b.id.localeCompare(a.id);
+        });
+    } catch (error: any) {
+      throw new AIError(`Failed to fetch Live Models (Anthropic): ${error.message}`);
+    }
+  }
+
   return [];
+}
+
+/**
+ * Returns the appropriate AI model instance based on the model ID.
+ */
+function getModel(modelId: string) {
+  if (modelId.startsWith('claude-')) {
+    return anthropic(modelId);
+  }
+  return google(modelId);
 }
 
 /**
@@ -109,9 +141,10 @@ export async function listModels(apiKey: string): Promise<{ name: string; displa
 export async function proposeOrganization(
   files: FileMetadata[], 
   targetDir: string,
-  modelId: string = 'gemini-2.5-flash',
+  modelId: string = 'gemini-2.0-flash',
   instructions: string = '',
-  parallelCalls: number = 3
+  parallelCalls: number = 3,
+  fallbackModelId?: string
 ): Promise<ActionPlan> {
   const BATCH_SIZE = 50;
   const chunkedFiles: FileMetadata[][] = [];
@@ -131,25 +164,37 @@ export async function proposeOrganization(
         const prompt = generateOrganizationPrompt(chunk, targetDir, instructions);
  
         try {
-          const result = await generateObject({
-            model: google(modelId),
-            schema: z.object({
-              planSummary: z.string().describe('A brief 1-sentence summary of the folder structures you created.'),
-              actions: z.array(z.object({
-                fileName: z.string().describe('The name of the file being moved'),
-                targetPath: z.string().describe('The relative destination FOLDER path from the target directory (e.g. "Documents/PDFs")'),
-                reason: z.string().describe('Short reason for the categorization')
-              }))
-            }),
-            prompt: prompt,
-          });
-          return { chunk, result };
+          const runTask = async (id: string) => {
+            return await generateObject({
+              model: getModel(id),
+              schema: z.object({
+                planSummary: z.string().describe('A brief 1-sentence summary of the folder structures you created.'),
+                actions: z.array(z.object({
+                  fileName: z.string().describe('The name of the file being moved'),
+                  targetPath: z.string().describe('The relative destination FOLDER path from the target directory (e.g. "Documents/PDFs")'),
+                  reason: z.string().describe('Short reason for the categorization')
+                }))
+              }),
+              prompt: prompt,
+            });
+          };
+
+          try {
+            const result = await runTask(modelId);
+            return { chunk, result };
+          } catch (error: any) {
+            if (fallbackModelId && fallbackModelId !== modelId) {
+              const result = await runTask(fallbackModelId);
+              return { chunk, result };
+            }
+            throw error;
+          }
         } catch (error: any) {
           if (error.message?.includes('quota')) {
-            throw new AIError('Gemini API Quota exceeded. Please try again later or check your plan.', 'QUOTA_EXCEEDED');
+            throw new AIError('AI API Quota exceeded. Please try again later or check your plan.', 'QUOTA_EXCEEDED');
           }
           if (error.message?.includes('API key')) {
-            throw new ConfigError('Invalid Gemini API Key. Please check your config.');
+            throw new ConfigError('Invalid AI API Key. Please check your config.');
           }
           throw new AIError(`AI Analysis Failed: ${error.message}`);
         }
@@ -209,9 +254,10 @@ export async function refineOrganization(
   targetDir: string,
   previousPlan: ActionPlan,
   feedback: string,
-  modelId: string = 'gemini-2.5-flash',
+  modelId: string = 'gemini-2.0-flash',
   history: HistoryItem[] = [],
-  parallelCalls: number = 3
+  parallelCalls: number = 3,
+  fallbackModelId?: string
 ): Promise<ActionPlan> {
   const systemPrompt = generateRefinementSystemPrompt(targetDir);
  
@@ -263,26 +309,38 @@ export async function refineOrganization(
         ];
  
         try {
-          const result = await generateObject({
-            model: google(modelId),
-            schema: z.object({
-              planSummary: z.string().describe('A brief 1-sentence summary of the folder structures you created.'),
-              actions: z.array(z.object({
-                fileName: z.string().describe('The name of the file being moved'),
-                targetPath: z.string().describe('The relative destination FOLDER path from the target directory (e.g. "Documents/PDFs")'),
-                reason: z.string().describe('Short reason for the categorization')
-              }))
-            }),
-            system: systemPrompt,
-            messages: messages,
-          });
-          return { chunk, result };
+          const runRefinement = async (id: string) => {
+            return await generateObject({
+              model: getModel(id),
+              schema: z.object({
+                planSummary: z.string().describe('A brief 1-sentence summary of the folder structures you created.'),
+                actions: z.array(z.object({
+                  fileName: z.string().describe('The name of the file being moved'),
+                  targetPath: z.string().describe('The relative destination FOLDER path from the target directory (e.g. "Documents/PDFs")'),
+                  reason: z.string().describe('Short reason for the categorization')
+                }))
+              }),
+              system: systemPrompt,
+              messages: messages,
+            });
+          };
+
+          try {
+            const result = await runRefinement(modelId);
+            return { chunk, result };
+          } catch (error: any) {
+            if (fallbackModelId && fallbackModelId !== modelId) {
+              const result = await runRefinement(fallbackModelId);
+              return { chunk, result };
+            }
+            throw error;
+          }
         } catch (error: any) {
           if (error.message?.includes('quota')) {
-            throw new AIError('Gemini API Quota exceeded. Please try again later or check your plan.', 'QUOTA_EXCEEDED');
+            throw new AIError('AI API Quota exceeded. Please try again later or check your plan.', 'QUOTA_EXCEEDED');
           }
           if (error.message?.includes('API key')) {
-            throw new ConfigError('Invalid Gemini API Key. Please check your config.');
+            throw new ConfigError('Invalid AI API Key. Please check your config.');
           }
           throw new AIError(`AI Refinement Failed: ${error.message}`);
         }

@@ -8,10 +8,13 @@ const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 export interface AppConfig {
   geminiApiKey: string;
   geminiModel?: string;
+  anthropicApiKey?: string;
+  anthropicModel?: string;
+  fallbackModelId?: string;
   parallelCalls?: number;
 }
 
-export const DEFAULT_MODEL = 'gemini-2.5-flash';
+export const DEFAULT_MODEL = 'gemini-2.0-flash';
 
 /**
  * Ensures the config directory exists.
