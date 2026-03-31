@@ -113,3 +113,8 @@ export async function exportPlan(plan: ActionPlan, format: 'json' | 'bash') {
   }
   return handleResponse(res);
 }
+
+export async function fetchSuggestions(path: string): Promise<string[]> {
+  const res = await fetch(`/api/suggestions?path=${encodeURIComponent(path)}`);
+  return handleResponse(res);
+}

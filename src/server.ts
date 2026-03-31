@@ -3,7 +3,8 @@ import { serve } from '@hono/node-server';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { resolve, dirname, join } from 'node:path';
+import { readdir, stat } from 'node:fs/promises';
+import { resolve, dirname, join, basename } from 'node:path';
 import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
 import { scanDirectory } from './core/fs/scanner.js';
@@ -79,6 +80,66 @@ app.get('/api/scan', async (c) => {
       });
     }
   });
+});
+
+app.get('/api/suggestions', async (c) => {
+  const rawPath = c.req.query('path') || '';
+  const expandedPath = expandPath(rawPath);
+  const isTilde = rawPath.startsWith('~');
+  const home = homedir();
+
+  try {
+    const results = new Set<string>();
+
+    const addSuggestion = (fullPath: string) => {
+      let displayPath = fullPath;
+      if (isTilde && displayPath.startsWith(home)) {
+        displayPath = '~' + displayPath.slice(home.length);
+      }
+      results.add(displayPath);
+    };
+
+    if (!rawPath) {
+      addSuggestion(home);
+      if (process.platform === 'win32') {
+        results.add('C:\\');
+      } else {
+        results.add('/');
+      }
+      return c.json(Array.from(results));
+    }
+
+    // 1. Check if the path itself is a directory to list its children
+    if (existsSync(expandedPath)) {
+      const stats = await stat(expandedPath);
+      if (stats.isDirectory()) {
+        const entries = await readdir(expandedPath, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory() && !entry.name.startsWith('.')) {
+            addSuggestion(join(expandedPath, entry.name));
+          }
+        }
+      }
+    }
+
+    // 2. Also check for sibling matches (prefix matching)
+    const searchDir = dirname(expandedPath);
+    const filter = basename(expandedPath);
+
+    if (existsSync(searchDir)) {
+      const entries = await readdir(searchDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name.toLowerCase().startsWith(filter.toLowerCase())) {
+          addSuggestion(join(searchDir, entry.name));
+        }
+      }
+    }
+
+    const sortedResults = Array.from(results).sort((a, b) => a.length - b.length || a.localeCompare(b));
+    return c.json(sortedResults.slice(0, 15)); // Limit to 15 suggestions
+  } catch (e) {
+    return c.json([]);
+  }
 });
 
 app.post('/api/propose', async (c) => {
