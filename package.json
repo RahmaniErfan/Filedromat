@@ -12,7 +12,9 @@
     "build": "rimraf dist && tsc",
     "start": "node dist/index.js",
     "lint": "eslint .",
-    "web:dev": "npm run dev --prefix web"
+    "server:dev": "tsx src/server.ts",
+    "web:dev": "npm run dev --prefix web",
+    "dev:all": "concurrently \"npm run server:dev\" \"npm run web:dev\""
   },
   "keywords": [
     "file",
@@ -26,6 +28,7 @@
   "dependencies": {
     "@ai-sdk/google": "^1.1.9",
     "@clack/prompts": "^0.9.1",
+    "@hono/node-server": "^1.19.11",
     "ai": "^4.1.45",
     "dotenv": "^16.4.7",
     "hono": "^4.7.2",
@@ -41,6 +44,7 @@
     "@types/node": "^22.13.9",
     "@types/react": "^19.2.14",
     "autoprefixer": "^10.4.27",
+    "concurrently": "^9.2.1",
     "postcss": "^8.5.8",
     "rimraf": "^6.0.1",
     "tailwindcss": "^4.2.2",
