@@ -9,6 +9,7 @@ import {
   Send, 
   ChevronRight, 
   ChevronDown, 
+  ChevronLeft,
   File, 
   Folder,
   Download,
@@ -29,7 +30,7 @@ interface SplitViewProps {
 
 // Helper to build tree from flat actions
 function buildTree(actions: FileAction[], targetFolder: string) {
-  const root: any = { name: 'New Structure', children: {}, files: [] };
+  const root: any = { id: 'root', name: 'New Structure', children: {}, files: [] };
   
   if (!actions || !Array.isArray(actions)) return root;
   
@@ -45,9 +46,11 @@ function buildTree(actions: FileAction[], targetFolder: string) {
     const fileName = parts.pop();
     let current = root;
     
+    let pathAcc = '';
     for (const part of parts) {
+      pathAcc += (pathAcc ? '-' : '') + part;
       if (!current.children[part]) {
-        current.children[part] = { name: part, children: {}, files: [] };
+        current.children[part] = { id: `folder-${pathAcc}`, name: part, children: {}, files: [] };
       }
       current = current.children[part];
     }
@@ -63,40 +66,50 @@ const TreeItem = ({ item, depth = 0 }: { item: any, depth?: number }) => {
   const hasChildren = Object.keys(item.children).length > 0 || item.files.length > 0;
 
   return (
-    <div className="select-none">
+    <div className="select-none relative" id={item.id}>
       <div 
-        className={`flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-primary/5 cursor-pointer transition-colors ${depth === 0 ? 'font-bold text-primary' : ''}`}
+        className={`flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-primary/5 cursor-pointer transition-colors group/item ${depth === 0 ? 'font-bold text-primary' : ''}`}
         onClick={() => setIsOpen(!isOpen)}
         style={{ paddingLeft: `${depth * 1.25}rem` }}
       >
-        {hasChildren && (
-          isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />
-        )}
-        {!hasChildren && <div className="w-4" />}
-        <Folder className={`w-4 h-4 ${depth === 0 ? 'fill-primary/20' : 'fill-muted'}`} />
-        <span className="text-sm truncate">{item.name}</span>
-        {item.files.length > 0 && (
-          <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1 opacity-50">
-            {item.files.length}
-          </Badge>
-        )}
+        <div className="flex items-center gap-2 relative z-10">
+          {hasChildren && (
+            isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />
+          )}
+          {!hasChildren && <div className="w-4" />}
+          <Folder className={`w-4 h-4 ${depth === 0 ? 'fill-primary/20' : 'fill-muted'}`} />
+          <span className="text-sm truncate">{item.name}</span>
+          {item.files.length > 0 && (
+            <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1 opacity-50">
+              {item.files.length}
+            </Badge>
+          )}
+        </div>
       </div>
       
       {isOpen && (
-        <div className="animate-in slide-in-from-left-2 duration-200">
+        <div className="animate-in slide-in-from-left-2 duration-200 relative">
+          {/* Vertical guideline */}
+          {hasChildren && (
+            <div 
+              className="absolute left-0 top-0 bottom-4 w-px bg-primary/25 group-hover/item:bg-primary/50 transition-colors"
+              style={{ left: `${depth * 1.25 + 0.5}rem` }}
+            />
+          )}
+          
           {Object.values(item.children).map((child: any) => (
             <TreeItem key={child.name} item={child} depth={depth + 1} />
           ))}
           {item.files.map((file: any) => (
             <div 
               key={file.name} 
-              className="flex items-center gap-2 py-1 px-2 rounded-lg hover:bg-muted/50 transition-colors group"
+              className="flex items-center gap-2 py-1 px-2 rounded-lg hover:bg-muted/50 transition-colors group relative z-10"
               style={{ paddingLeft: `${(depth + 1) * 1.25}rem` }}
               title={file.reason}
             >
               <File className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-xs truncate flex-1 text-muted-foreground">{file.name}</span>
-              <span className="text-[10px] text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="text-[10px] text-primary opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap overflow-hidden text-ellipsis max-w-[100px]">
                 {file.reason.substring(0, 20)}...
               </span>
             </div>
@@ -107,14 +120,137 @@ const TreeItem = ({ item, depth = 0 }: { item: any, depth?: number }) => {
   );
 };
 
+const FolderPills = ({ folders, onScrollTo }: { folders: any[], onScrollTo: (id: string) => void }) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(false);
+
+  const checkScroll = () => {
+    const el = scrollRef.current;
+    if (el) {
+      const { scrollLeft, scrollWidth, clientWidth } = el;
+      setShowLeftArrow(scrollLeft > 5);
+      setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 5);
+    }
+  };
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) {
+      checkScroll();
+      
+      const handleWheel = (e: WheelEvent) => {
+        // If content is not scrollable horizontally, let the event pass through
+        if (el.scrollWidth <= el.clientWidth) return;
+
+        // If the user is already scrolling horizontally (Shift + Wheel or Trackpad), let it be
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+
+        if (e.deltaY !== 0) {
+          const isScrollingLeft = e.deltaY < 0;
+          const canScrollLeft = el.scrollLeft > 0;
+          const canScrollRight = el.scrollLeft < el.scrollWidth - el.clientWidth - 1;
+
+          // Only intercept if we haven't reached the boundaries in the desired direction
+          if ((isScrollingLeft && canScrollLeft) || (!isScrollingLeft && canScrollRight)) {
+            e.preventDefault();
+            el.scrollLeft += e.deltaY;
+            checkScroll();
+          }
+        }
+      };
+      
+      el.addEventListener('wheel', handleWheel, { passive: false });
+      el.addEventListener('scroll', checkScroll);
+      
+      return () => {
+        el.removeEventListener('wheel', handleWheel);
+        el.removeEventListener('scroll', checkScroll);
+      };
+    }
+  }, [folders]);
+
+  if (folders.length === 0) return null;
+
+  const scrollBy = (amount: number) => {
+    scrollRef.current?.scrollBy({ left: amount, behavior: 'smooth' });
+  };
+  
+  return (
+    <div className="relative group/pills mt-1 flex-1 min-w-0 overflow-hidden">
+      {/* Navigation Arrows */}
+      {showLeftArrow && (
+        <div className="absolute left-0 top-0 bottom-2 z-20 flex items-center pr-8 bg-gradient-to-r from-muted/40 via-muted/20 to-transparent pointer-events-none">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-6 w-6 rounded-full bg-white/90 shadow-sm border border-primary/10 pointer-events-auto hover:bg-white hover:scale-110 transition-all ml-0.5"
+            onClick={() => scrollBy(-150)}
+          >
+            <ChevronLeft className="h-4 w-4 text-primary" />
+          </Button>
+        </div>
+      )}
+
+      {showRightArrow && (
+        <div className="absolute right-0 top-0 bottom-2 z-20 flex items-center pl-8 bg-gradient-to-l from-muted/40 via-muted/20 to-transparent pointer-events-none">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-6 w-6 rounded-full bg-white/90 shadow-sm border border-primary/10 pointer-events-auto hover:bg-white hover:scale-110 transition-all mr-0.5"
+            onClick={() => scrollBy(150)}
+          >
+            <ChevronRight className="h-4 w-4 text-primary" />
+          </Button>
+        </div>
+      )}
+
+      <div 
+        ref={scrollRef}
+        className="flex gap-2 overflow-x-auto pb-2 px-1 no-scrollbar overflow-y-hidden"
+      >
+        {folders.map(folder => (
+          <Badge 
+            key={folder.id}
+            variant="secondary" 
+            className="cursor-pointer hover:bg-primary/20 hover:text-primary whitespace-nowrap transition-all flex items-center gap-1.5 py-1 px-3 border border-transparent hover:border-primary/20 shadow-sm"
+            onClick={() => onScrollTo(folder.id)}
+          >
+            <Folder className="w-3 h-3 fill-current opacity-60" />
+            {folder.name}
+          </Badge>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 export function SplitView({ plan, history, onRefine, onExecute, onExport, isRefining }: SplitViewProps) {
   const [feedback, setFeedback] = useState('');
   const treeData = useMemo(() => buildTree(plan.actions, plan.targetFolder || ''), [plan]);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const hierarchyRef = useRef<HTMLDivElement>(null);
+
+  const mainFolders = useMemo(() => {
+    return Object.values(treeData.children).map((child: any) => ({
+      id: child.id,
+      name: child.name
+    }));
+  }, [treeData]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history, isRefining]);
+
+  const scrollToFolder = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Add a brief highlight effect
+      element.classList.add('bg-primary/10');
+      setTimeout(() => element.classList.remove('bg-primary/10'), 2000);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,16 +284,22 @@ export function SplitView({ plan, history, onRefine, onExecute, onExport, isRefi
         </div>
       </div>
 
-      <div className="flex flex-1 gap-4 overflow-hidden">
+      <div className="flex flex-1 gap-6 overflow-hidden pb-4">
         {/* Left Pane: The Tree */}
         <Card className="flex-3 laundry-card flex flex-col overflow-hidden text-card-foreground">
-          <CardHeader className="py-3 bg-muted/20 border-b">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <FolderTree className="w-4 h-4 text-primary" />
-              Proposed Hierarchy
-            </CardTitle>
+          <CardHeader className="py-3 bg-muted/20 border-b space-y-1">
+            <div className="flex items-center justify-between w-full">
+              <CardTitle className="text-[12px] font-bold uppercase tracking-wider flex items-center gap-2 text-muted-foreground/80">
+                <FolderTree className="w-3.5 h-3.5 text-primary" />
+                Proposed Hierarchy
+              </CardTitle>
+              <span className="text-[10px] text-primary/40 font-semibold uppercase tracking-widest selection:bg-transparent">
+                Swipe tags to browse • Tap to jump
+              </span>
+            </div>
+            <FolderPills folders={mainFolders} onScrollTo={scrollToFolder} />
           </CardHeader>
-          <CardContent className="flex-1 overflow-auto p-4 custom-scrollbar">
+          <CardContent className="flex-1 overflow-auto p-4 custom-scrollbar" ref={hierarchyRef}>
             <TreeItem item={treeData} />
           </CardContent>
         </Card>
@@ -165,8 +307,8 @@ export function SplitView({ plan, history, onRefine, onExecute, onExport, isRefi
         {/* Right Pane: The Chat */}
         <Card className="flex-2 laundry-card flex flex-col overflow-hidden relative text-card-foreground">
           <CardHeader className="py-3 bg-muted/20 border-b">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-primary" />
+            <CardTitle className="text-[12px] font-bold uppercase tracking-wider flex items-center gap-2 text-muted-foreground/80">
+              <MessageSquare className="w-3.5 h-3.5 text-primary" />
               Refinement Chat
             </CardTitle>
           </CardHeader>
