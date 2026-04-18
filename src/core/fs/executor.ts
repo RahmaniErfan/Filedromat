@@ -4,7 +4,12 @@ import type { ActionPlan } from '../../types/index.js';
 import { FileSystemError } from '../errors/fs.js';
 
 /**
- * Executes an approved action plan by moving files to their target paths.
+ * Executes an approved organization plan by physically moving files.
+ * Creates target directories recursively if they don't exist.
+ * 
+ * @param plan - The ActionPlan containing the list of source and target paths.
+ * @returns A promise that resolves when all file operations are complete.
+ * @throws {FileSystemError} If a directory cannot be created or a file cannot be moved.
  */
 export async function executePlan(plan: ActionPlan): Promise<void> {
   for (const action of plan.actions) {

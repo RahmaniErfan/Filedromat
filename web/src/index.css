@@ -135,9 +135,43 @@
   animation: bubble-float 5s ease-in infinite;
 }
 
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
 /* Glassy effects for cards */
 .laundry-card {
-  @apply bg-card/80 backdrop-blur-md border border-white/20 shadow-xl shadow-primary/5;
+  @apply bg-card/60 backdrop-blur-xl border border-white/20 shadow-2xl shadow-primary/10 transition-all duration-500 hover:shadow-primary/20 hover:border-white/30;
+}
+
+.status-glow-green {
+  box-shadow: 0 0 15px oklch(0.65 0.15 150 / 0.5);
+  animation: pulse-green 2s infinite;
+}
+
+.status-glow-red {
+  box-shadow: 0 0 15px oklch(0.6 0.2 25 / 0.5);
+  animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.1); }
+}
+
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.2); }
+}
+
+.gloss {
+  background: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 50%, rgba(255,255,255,0.1) 100%);
+  pointer-events: none;
 }
 
 /* Transitions for navigation */

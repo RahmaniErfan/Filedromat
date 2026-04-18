@@ -10,21 +10,36 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+import { existsSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// If we are in development, run using 'tsx'
-// If we are in production, run 'dist/index.js'
-const devPath = join(__dirname, '../src/index.ts');
+const devPath = join(__dirname, '../src/index.tsx');
 const prodPath = join(__dirname, '../dist/index.js');
 
-// For now, let's just log a message since we are initializing
-console.log('🧺 Filedromat - Your AI File Organizer');
-console.log('Scanning files...');
+let targetPath = prodPath;
+let useTsx = false;
 
-// This will eventually spawn the actual logic
-/*
-spawn('npx', ['tsx', devPath, ...process.argv.slice(2)], {
+// If we are in a development environment (src exists and no dist), use tsx
+if (existsSync(devPath) && !existsSync(prodPath)) {
+  targetPath = devPath;
+  useTsx = true;
+}
+
+const args = useTsx 
+  ? ['tsx', targetPath, ...process.argv.slice(2)] 
+  : [targetPath, ...process.argv.slice(2)];
+
+const command = useTsx ? 'npx' : 'node';
+
+const child = spawn(command, args, {
   stdio: 'inherit',
 });
-*/
+
+child.on('exit', (code) => {
+  process.exit(code || 0);
+});

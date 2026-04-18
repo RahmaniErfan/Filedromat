@@ -8,10 +8,16 @@ import { cn } from '@/lib/utils';
 import { Popover } from '@base-ui/react/popover';
 
 interface DirectorySelectorProps {
+  /** Callback triggered when a final directory path is selected. */
   onSelect: (path: string) => void;
+  /** Callback to return to the previous screen. */
   onBack: () => void;
 }
 
+/**
+ * A directory selection component with autocomplete suggestions.
+ * Allows users to enter an absolute path or pick from system suggestions.
+ */
 export function DirectorySelector({ onSelect, onBack }: DirectorySelectorProps) {
   const [path, setPath] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -33,7 +39,6 @@ export function DirectorySelector({ onSelect, onBack }: DirectorySelectorProps) 
   }, [selectedIndex]);
 
   const handleFocus = () => {
-    console.log('[DirectorySelector] Input focused');
     setShowSuggestions(true);
     if (!path) refresh();
   };
@@ -60,13 +65,11 @@ export function DirectorySelector({ onSelect, onBack }: DirectorySelectorProps) 
 
   const handleSuggestionClick = (e: React.BaseSyntheticEvent | null, suggestion: string) => {
     e?.stopPropagation();
-    console.log('[DirectorySelector] Suggestion clicked:', suggestion);
     const slashPath = suggestion.endsWith('/') ? suggestion : suggestion + '/';
     
     // If we click the EXACT same folder already in the input, close it
     const normalizedCurrentPath = path.endsWith('/') ? path : path + '/';
     if (normalizedCurrentPath === slashPath) {
-      console.log('[DirectorySelector] Re-clicked current path, closing suggestions');
       setShowSuggestions(false);
       return;
     }
@@ -95,15 +98,8 @@ export function DirectorySelector({ onSelect, onBack }: DirectorySelectorProps) 
           <Popover.Root 
             open={showSuggestions} 
             onOpenChange={(open: boolean, details: { reason: any }) => {
-              console.log(`[DirectorySelector] Popover OpenChange: ${open} (Reason: ${details.reason})`);
-              
-              // If it's a trigger press (toggle), and we are already focusing/opening,
-              // we might want to ignore the 'close' signal if it happens immediately after focus.
-              // However, the simplest fix for the 'flicker' is to ensure we don't toggle OFF
-              // when the user is just clicking into the field.
+              // Prevent closing the suggestions immediately upon focusing the input
               if (details.reason === 'trigger-press' && showSuggestions) {
-                 // Already open, and user clicked again. 
-                 // For an input-style trigger, we usually want to keep it open.
                  return;
               }
               
@@ -122,15 +118,12 @@ export function DirectorySelector({ onSelect, onBack }: DirectorySelectorProps) 
                     value={path}
                     onChange={(e) => {
                       const newPath = e.target.value;
-                      console.log('[DirectorySelector] Path changed:', newPath);
                       setPath(newPath);
                       setShowSuggestions(true);
                       setSelectedIndex(-1);
                     }}
                     onFocus={handleFocus}
                     onClick={() => {
-                      console.log('[DirectorySelector] Input clicked');
-                      // No need to stop propagation if we handle the reason in Root
                       setShowSuggestions(true);
                     }}
                     onPointerDown={(e) => e.stopPropagation()}

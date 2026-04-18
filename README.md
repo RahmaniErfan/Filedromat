@@ -1,8 +1,20 @@
-# 🧺 Filedromat
-
-> **The AI Local File Laundry.** Wash away the clutter and organize your directories with the power of Gemini.
-
 **Filedromat** is a professional, terminal-first file organization utility that uses Google's latest Gemini models to intelligently categorize and move your files. It features a "Deep Wash" pipeline that looks inside your documents and PDFs to understand exactly where they belong.
+
+---
+
+## 🛡️ Security & Privacy
+
+### Local Filesystem Access
+**Filedromat** is designed as a local-first tool. To provide its core functionality, the backend server requires **read and write access** to your filesystem. 
+- **Warning**: The server (port 3000 by default) does not include built-in authentication. **Never expose this port to a public network.** 
+- **Recommendation**: Always run Filedromat on a firewalled machine or within your local internal network.
+
+### Data Privacy
+- **Metadata**: Only file metadata (names, sizes, extensions) and a small sample of content (if Deep Wash is enabled) are sent to your chosen AI provider (Google or Anthropic).
+- **Control**: No file data is permanently stored on external servers or used for training by Filedromat.
+- **API Keys**: Your keys are stored locally in `~/.filedromat/config.json`.
+
+---
 
 ---
 
@@ -58,10 +70,25 @@ npm run dev
 
 ---
 
-## Tech Stack
-
-- **Runtime**: Node.js
 - **Logic**: TypeScript
-- **UI Framework**: [Ink](https://github.com/vadimdemedes/ink) (React for CLI)
-- **AI Orchestration**: [AI SDK](https://sdk.vercel.ai/) with Google Gemini
+- **UI Framework**: [Ink](https://github.com/vadimdemedes/ink) (Cli) & React (Web)
+- **AI Orchestration**: [AI SDK](https://sdk.vercel.ai/)
 - **PDF Extraction**: `pdf-parse`
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! If you'd like to improve the laundry machine:
+
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/amazing-feature`).
+3. Commit your changes (`git commit -m 'Add amazing feature'`).
+4. Push to the branch (`git push origin feature/amazing-feature`).
+5. Open a Pull Request.
+
+---
+
+## 📄 License
+
+Distributed under the MIT License. See `LICENSE` for more information.

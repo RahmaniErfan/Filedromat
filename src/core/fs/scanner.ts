@@ -8,8 +8,15 @@ const SAFE_EXTENSIONS = new Set(['txt', 'md', 'csv', 'json', 'ts', 'js', 'html',
 const BATCH_SIZE = 50;
 
 /**
- * Scans a directory for files and returns their metadata.
- * Optionally performs a deepWash (reading file contents) and recurses up to maxDepth.
+ * Scans a directory recursively and returns metadata for all found files.
+ * 
+ * @param dirPath - The absolute path of the directory to scan.
+ * @param deepWash - If true, reads the first 1000 characters of supported files (PDF, txt, etc.) to provide context for AI.
+ * @param maxDepth - Maximum recursion depth (0 for current directory only).
+ * @param currentDepth - Internal tracker for current recursion level.
+ * @param onProgress - Optional callback triggered every time a new file is found.
+ * @returns A promise resolving to an array of FileMetadata objects.
+ * @throws {FileSystemError} If the directory cannot be read.
  */
 export async function scanDirectory(
   dirPath: string, 

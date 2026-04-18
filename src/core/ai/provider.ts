@@ -1,4 +1,4 @@
-import { generateObject, generateText, type CoreMessage } from 'ai';
+import { generateObject, generateText, type ModelMessage } from 'ai';
 import { google } from '@ai-sdk/google';
 import { anthropic } from '@ai-sdk/anthropic';
 import Anthropic from '@anthropic-ai/sdk';
@@ -10,6 +10,11 @@ import { AIError, ConfigError } from '../errors/ai.js';
 
 /**
  * Fetches available AI models from a provider that support content generation.
+ * 
+ * @param provider - The AI provider to fetch models from ('google' or 'anthropic').
+ * @param apiKey - The API key for the specified provider.
+ * @returns A promise that resolves to an array of supported AI models.
+ * @throws {AIError} If the fetch request fails or is denied.
  */
 export async function fetchLiveModels(provider: 'google' | 'openai' | 'anthropic', apiKey: string): Promise<AIModel[]> {
   if (provider === 'google') {
@@ -23,17 +28,18 @@ export async function fetchLiveModels(provider: 'google' | 'openai' | 'anthropic
 
       const data = (await response.json()) as { models: any[] };
       
+      // Keywords used to filter out models that are not suitable for general text tasks
       const forbiddenTerms = [
-        'banana',      // Image models
-        'lyria',       // Music models
-        'veo',         // Video models
-        'imagen',      // Older image models
-        'vision',      // Vision-only models
-        'embedding',   // Vector models
-        'robotics',    // Hardware models
-        'gemma',       // Open models (usually too heavy/specific)
-        'research',    // Deep Research / specialized agents
-        'live',        // Real-time audio models
+        'banana',      // Image generation
+        'lyria',       // Music generation
+        'veo',         // Video generation
+        'imagen',      // Image generation
+        'vision',      // Vision-only specialized models
+        'embedding',   // Similarity/Vector models
+        'robotics',    // Specialized hardware models
+        'gemma',       // Lightweight/Research models
+        'research',    // Deep Research or experimental agents
+        'live',        // Real-time audio/multimodal models
         'tts'          // Text-to-speech
       ];
 
@@ -43,15 +49,15 @@ export async function fetchLiveModels(provider: 'google' | 'openai' | 'anthropic
           const id = m.name.toLowerCase();
           const displayName = m.displayName.toLowerCase();
           
-          // 1. Must support generating text content
+          // 1. Ensure the model supports generating text content
           const supportsText = m.supportedGenerationMethods.includes('generateContent');
           
-          // 2. MUST NOT contain any of our forbidden terms in the ID or Display Name
+          // 2. Exclude specialized or experimental models based on keywords
           const isForbidden = forbiddenTerms.some(term => 
             id.includes(term) || displayName.includes(term)
           );
 
-          // 3. Hide the versioned developer aliases (e.g., -001, -002)
+          // 3. Hide legacy versioned developer aliases (e.g., -001, -002) for a cleaner UI
           const isVersioned = /-\d{3}$/.test(id);
 
           return supportsText && !isForbidden && !isVersioned;
@@ -136,7 +142,17 @@ export async function listModels(apiKey: string): Promise<{ name: string; displa
 }
 
 /**
- * Proposes an organization plan using a specified Gemini model.
+ * Proposes an initial organization plan for a list of files.
+ * Uses a sliding batch system to handle large directories within context limits.
+ * 
+ * @param files - Metadata of files to be organized.
+ * @param targetDir - The root directory where organization will happen.
+ * @param modelId - The AI model to use for analysis.
+ * @param instructions - Optional user-provided custom organization rules.
+ * @param parallelCalls - Number of batches to process concurrently.
+ * @param fallbackModelId - Optional fallback model if the primary fails.
+ * @returns A promise resolving to the final ActionPlan.
+ * @throws {AIError} If processing fails or quota is exceeded.
  */
 export async function proposeOrganization(
   files: FileMetadata[], 
@@ -247,7 +263,17 @@ export async function proposeOrganization(
 }
 
 /**
- * Refines an organization plan based on user feedback.
+ * Refines an existing organization plan based on user feedback.
+ * 
+ * @param files - Metadata of files in the current context.
+ * @param targetDir - The root directory of the organization.
+ * @param previousPlan - The plan currently being reviewed.
+ * @param feedback - Natural language feedback from the user.
+ * @param modelId - The AI model to use for refinement.
+ * @param history - Conversation history for multi-turn refinement.
+ * @param parallelCalls - Number of batches to process concurrently.
+ * @param fallbackModelId - Optional fallback model if the primary fails.
+ * @returns A promise resolving to the updated ActionPlan.
  */
 export async function refineOrganization(
   files: FileMetadata[],
@@ -272,7 +298,7 @@ export async function refineOrganization(
  
   // Sliding window: last 4 items (2 turns of user/assistant)
   const recentHistory = history.slice(-4);
-  const historyMessages: CoreMessage[] = recentHistory.map(h => ({
+  const historyMessages: ModelMessage[] = recentHistory.map(h => ({
     role: h.role,
     content: h.content
   }));
@@ -300,7 +326,7 @@ export async function refineOrganization(
           ...(f.contentSample ? { contentSample: f.contentSample } : {})
         }));
  
-        const messages: CoreMessage[] = [
+        const messages: ModelMessage[] = [
           ...historyMessages,
           {
             role: 'user',

@@ -12,8 +12,18 @@ import { proposeOrganization, refineOrganization, fetchLiveModels } from './core
 import { executePlan } from './core/fs/executor.js';
 import { loadConfig, saveConfig } from './config/index.js';
 
+/**
+ * Filedromat Backend Server
+ * 
+ * SECURITY WARNING: This server allows raw filesystem access to provide directory scanning 
+ * and file moving features. It is intended for LOCAL USE ONLY. Never expose this server 
+ * to a public network without industrial-strength authentication and sandboxing.
+ */
 const app = new Hono();
 
+/** 
+ * Helper function to expand tilde (~) to home directory and resolve to absolute path.
+ */
 function expandPath(p: string) {
   if (p.startsWith('~')) {
     return join(homedir(), p.slice(1));
@@ -21,21 +31,32 @@ function expandPath(p: string) {
   return resolve(p);
 }
 
-// Enable CORS for frontend development
+// Enable CORS for development (e.g. Vite dev server)
 app.use('/api/*', cors());
 
-// API Endpoints
+/**
+ * GET /api/config
+ * Retrieves the current application configuration.
+ */
 app.get('/api/config', async (c) => {
   const config = await loadConfig();
   return c.json(config || {});
 });
 
+/**
+ * POST /api/config
+ * Saves the provided configuration to ~/.filedromat/config.json.
+ */
 app.post('/api/config', async (c) => {
   const config = await c.req.json();
   await saveConfig(config);
   return c.json({ success: true });
 });
 
+/**
+ * GET /api/models
+ * Fetches available models for a specific provider using the provided API key.
+ */
 app.get('/api/models', async (c) => {
   const apiKey = c.req.query('apiKey');
   const provider = (c.req.query('provider') as 'google' | 'anthropic') || 'google';
@@ -48,6 +69,10 @@ app.get('/api/models', async (c) => {
   }
 });
 
+/**
+ * GET /api/scan
+ * Recursively scans a directory for files. Streams progress as SSE.
+ */
 app.get('/api/scan', async (c) => {
   const rawPath = c.req.query('path');
   const deepWash = c.req.query('deepWash') === 'true';
@@ -83,6 +108,10 @@ app.get('/api/scan', async (c) => {
   });
 });
 
+/**
+ * GET /api/suggestions
+ * Provides directory path suggestions for the frontend autocomplete.
+ */
 app.get('/api/suggestions', async (c) => {
   const rawPath = c.req.query('path') || '';
   const expandedPath = expandPath(rawPath);
@@ -149,6 +178,10 @@ app.get('/api/suggestions', async (c) => {
   }
 });
 
+/**
+ * POST /api/propose
+ * Triggers the AI to analyze scanned files and propose a new directory structure.
+ */
 app.post('/api/propose', async (c) => {
   const { files, targetDir, modelId, instructions } = await c.req.json();
   try {
@@ -174,6 +207,10 @@ app.post('/api/propose', async (c) => {
   }
 });
 
+/**
+ * POST /api/refine
+ * Sends user feedback to the AI to tweak an existing organization plan.
+ */
 app.post('/api/refine', async (c) => {
     const { files, targetDir, previousPlan, feedback, modelId, history } = await c.req.json();
     try {
@@ -201,6 +238,10 @@ app.post('/api/refine', async (c) => {
   }
 });
 
+/**
+ * POST /api/execute
+ * Physically moves the files according to the approved plan.
+ */
 app.post('/api/execute', async (c) => {
   const plan = await c.req.json();
   try {

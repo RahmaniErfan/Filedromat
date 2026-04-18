@@ -8,11 +8,18 @@ async function handleResponse(res: Response) {
   return res.json();
 }
 
+/**
+ * Fetches the current application configuration from the backend.
+ */
 export async function fetchConfig() {
   const res = await fetch('/api/config');
   return handleResponse(res);
 }
 
+/**
+ * Saves the application configuration to the backend.
+ * @param config - The new AppConfig object.
+ */
 export async function saveConfig(config: any) {
   const res = await fetch('/api/config', {
     method: 'POST',
@@ -22,11 +29,23 @@ export async function saveConfig(config: any) {
   return handleResponse(res);
 }
 
+/**
+ * Fetches available AI models for the given provider and API key.
+ */
 export async function fetchModels(apiKey: string, provider: 'google' | 'anthropic' = 'google'): Promise<AIModel[]> {
   const res = await fetch(`/api/models?apiKey=${encodeURIComponent(apiKey)}&provider=${provider}`);
   return handleResponse(res);
 }
 
+/**
+ * Initiates a directory scan. PROGRESS is streamed via Server-Sent Events (SSE).
+ * 
+ * @param path - The absolute path to scan.
+ * @param deepWash - Whether to perform deep content analysis.
+ * @param maxDepth - Maximum recursion depth.
+ * @param onProgress - Callback for progress updates.
+ * @returns A promise that resolves when the scan is complete.
+ */
 export function scanDirectory(
   path: string,
   deepWash: boolean,
@@ -62,6 +81,9 @@ export function scanDirectory(
   });
 }
 
+/**
+ * Requests the AI to propose an organization plan.
+ */
 export async function proposeOrganization(
   files: FileMetadata[],
   targetDir: string,
@@ -76,6 +98,9 @@ export async function proposeOrganization(
   return handleResponse(res);
 }
 
+/**
+ * Refines a proposal based on user feedback.
+ */
 export async function refineOrganization(
   files: FileMetadata[],
   targetDir: string,
@@ -92,6 +117,9 @@ export async function refineOrganization(
   return handleResponse(res);
 }
 
+/**
+ * Executes the approved organization plan on the local filesystem.
+ */
 export async function executePlan(plan: ActionPlan) {
   const res = await fetch('/api/execute', {
     method: 'POST',

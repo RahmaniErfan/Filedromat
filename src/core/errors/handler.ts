@@ -21,13 +21,13 @@ export function handleGlobalError(error: unknown, spinner?: any, shouldExitOverr
     exitProcess = error.shouldExit;
   } else if (error instanceof Error) {
     message = error.message;
-    // Map some common errors to more user-friendly messages if needed
+    // Map specific error messages to clear, actionable guidance
     if (message.includes('quota')) {
       title = 'Quota Exceeded';
-      message = 'Gemini API Quota exceeded. Please try again later or check your plan.';
+      message = 'Your AI API Quota has been reached. Please check your billing or usage limits.';
     } else if (message.includes('API key')) {
-      title = 'API Key Error';
-      message = 'Invalid Gemini API Key. Please check your configuration.';
+      title = 'Authentication Failed';
+      message = 'The provided API Key is invalid. Please check your settings.';
     }
   }
 

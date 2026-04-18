@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
-import { Play, Settings, Binary, HardDrive, Thermometer } from 'lucide-react';
+import { Play, Settings, Binary } from 'lucide-react';
 import { Badge } from './ui/badge';
 
 interface LobbyProps {
@@ -29,100 +29,93 @@ export function Lobby({ config, onStart, onSettings }: LobbyProps) {
         </div>
       </div>
 
-      <div className="text-center space-y-2 max-w-lg">
-        <h1 className="text-4xl font-bold tracking-tight bg-linear-to-br from-primary to-accent bg-clip-text text-transparent">
+      <div className="text-center space-y-3 max-w-lg mb-4">
+        <h1 className="text-5xl font-black tracking-tighter bg-linear-to-br from-primary via-blue-400 to-accent bg-clip-text text-transparent drop-shadow-sm">
           Filedromat
         </h1>
-        <p className="text-muted-foreground text-lg">
-          The AI-powered "File Laundry" for your messy directories.
+        <p className="text-muted-foreground/80 text-lg font-medium">
+          The AI-powered <span className="text-primary font-bold">"File Laundry"</span> for your messy directories.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 w-full max-w-4xl px-4">
-        <Card className="laundry-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Thermometer className="w-4 h-4 text-orange-500" />
-              Machine Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-xl font-bold italic tracking-tight uppercase ${isConfigured ? 'text-green-500' : 'text-red-500'}`}>
-              {isConfigured ? 'Ready to Wash' : 'Needs Detergent'}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1 font-black uppercase tracking-widest opacity-60">
-              {isConfigured ? 'All Systems Operational' : 'API Keys Required'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="laundry-card md:col-span-2 relative overflow-hidden group">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Binary className="w-4 h-4 text-blue-500" />
-                Intelligence & Neural Link
+      <div className="w-full max-w-2xl px-4">
+        <Card className="laundry-card relative overflow-hidden group border-2 border-primary/20 p-8">
+          {/* Glossy Overlay */}
+          <div className="absolute inset-0 gloss opacity-50 transition-opacity group-hover:opacity-70" />
+          
+          <div className="relative z-10 space-y-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 shadow-lg ${isConfigured ? 'bg-primary text-primary-foreground rotate-0 scale-110 shadow-primary/20' : 'bg-muted text-muted-foreground rotate-12 opacity-50'}`}>
+                  <Binary className="w-6 h-6" />
+                </div>
+                <div className="space-y-0.5">
+                  <h2 className="text-sm font-black uppercase tracking-[0.2em] text-muted-foreground/60">Main Processing Unit</h2>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2.5 h-2.5 rounded-full ${isConfigured ? 'bg-green-500 status-glow-green' : 'bg-red-500 status-glow-red'}`} />
+                    <span className={`text-xs font-bold uppercase tracking-widest ${isConfigured ? 'text-green-600' : 'text-red-500 animate-pulse'}`}>
+                      {isConfigured ? 'All Systems Operational' : 'Neural Link Offline'}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="flex gap-1.5 translate-x-2">
+
+              <div className="flex gap-2">
                 <Badge 
                   variant="outline" 
-                  className={`text-[8px] font-black h-5 px-2 transition-all duration-500 ${
+                  className={`text-[9px] font-black h-6 px-3 transition-all duration-500 rounded-full ${
                     hasGemini 
-                      ? 'bg-blue-500/10 text-blue-600 border-blue-500/20 shadow-sm shadow-blue-500/10' 
-                      : 'bg-muted/30 text-muted-foreground/30 border-transparent opacity-50 grayscale'
+                      ? 'bg-blue-500/10 text-blue-600 border-blue-500/30 shadow-sm' 
+                      : 'bg-muted/30 text-muted-foreground/30 border-transparent grayscale'
                   }`}
                 >
                   GEMINI
                 </Badge>
                 <Badge 
                   variant="outline" 
-                  className={`text-[8px] font-black h-5 px-2 transition-all duration-500 ${
+                  className={`text-[9px] font-black h-6 px-3 transition-all duration-500 rounded-full ${
                     hasAnthropic 
-                      ? 'bg-orange-500/10 text-orange-600 border-orange-500/20 shadow-sm shadow-orange-500/10' 
-                      : 'bg-muted/30 text-muted-foreground/30 border-transparent opacity-50 grayscale'
+                      ? 'bg-orange-500/10 text-orange-600 border-orange-500/30 shadow-sm' 
+                      : 'bg-muted/30 text-muted-foreground/30 border-transparent grayscale'
                   }`}
                 >
                   CLAUDE
                 </Badge>
               </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3 mb-2">
-              <div className={`text-xl font-bold italic tracking-tight uppercase truncate max-w-[90%] ${isConfigured ? '' : 'text-muted-foreground/50 font-medium'}`}>
-                {isConfigured 
-                  ? (config.geminiModel || config.anthropicModel || 'DEFAULT ENGINE').toUpperCase()
-                  : 'ENGINE OFFLINE'}
+            </div>
+
+            <div className="py-6 border-y border-primary/5">
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary/40 mb-1">Active Neural Engine</span>
+                <div className={`text-3xl font-black italic tracking-tighter uppercase truncate ${isConfigured ? 'text-foreground' : 'text-muted-foreground/30 font-medium'}`}>
+                  {isConfigured 
+                    ? (config.geminiModel || config.anthropicModel || 'DEFAULT ENGINE').toUpperCase()
+                    : 'Awaiting Detergent...'}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-               <div className={`w-1.5 h-1.5 rounded-full ${isConfigured && config.fallbackModelId ? 'bg-primary animate-pulse shadow-[0_0_8px_rgba(var(--primary),0.5)]' : (isConfigured ? 'bg-primary/50' : 'bg-muted-foreground/20')}`} />
-               <p className="text-xs text-muted-foreground mt-0.5 font-black uppercase tracking-widest opacity-60">
-                 {!isConfigured 
-                   ? 'Neural Link Required'
-                   : config.fallbackModelId 
-                     ? `RESILLIENT CLUSTER: ${config.fallbackModelId.toUpperCase()}` 
-                     : 'Single Neural Engine Active'}
-               </p>
-            </div>
-          </CardContent>
-        </Card>
 
-        <Card className="laundry-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <HardDrive className="w-4 h-4 text-purple-500" />
-              Load Capacity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold italic tracking-tight uppercase">High-Capacity Drum</div>
-            <p className="text-xs text-muted-foreground mt-1 font-black uppercase tracking-widest opacity-60">
-              Deep Agitation Enabled
-            </p>
-          </CardContent>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                 <div className={`p-2 rounded-xl ${isConfigured ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground/40'}`}>
+                  <Settings className="w-4 h-4 animate-spin-slow" />
+                 </div>
+                 <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest leading-none">
+                   {!isConfigured 
+                     ? 'API Encryption Keys Missing'
+                     : config.fallbackModelId 
+                       ? `Active Cluster: Resilient Mode (${config.fallbackModelId.toUpperCase()})` 
+                       : 'Standard Folding Protocol Active'}
+                 </p>
+              </div>
+              <Badge variant="secondary" className="bg-primary/5 text-primary border-primary/10 font-bold uppercase text-[9px]">
+                v2.0.4-LNDRY
+              </Badge>
+            </div>
+          </div>
         </Card>
       </div>
+
 
       <div className="flex gap-4">
         <Button size="lg" className="rounded-full px-8 gap-2 shadow-lg hover:scale-105 transition-transform" onClick={onStart} disabled={!isConfigured}>
