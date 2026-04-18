@@ -14,6 +14,7 @@ interface SettingsViewProps {
   models: any[];
   handleSettingsMenu: (item: any) => void;
   handleSelectModel: (item: any) => void;
+  handleSelectThinking: (item: any) => void;
 }
 
 export function SettingsView({
@@ -24,10 +25,12 @@ export function SettingsView({
   submitApiKey,
   models,
   handleSettingsMenu,
-  handleSelectModel
+  handleSelectModel,
+  handleSelectThinking
 }: SettingsViewProps) {
   useInput((input, key) => {
-    if (mode === 'SETTINGS_API_KEY' && key.escape) {
+    const escapableModes = ['SETTINGS_API_KEY', 'SETTINGS_THINKING_SELECT'];
+    if (escapableModes.includes(mode) && key.escape) {
       handleSettingsMenu({ value: 'back' });
     }
   });
@@ -41,6 +44,9 @@ export function SettingsView({
               items={[
                 { value: 'update_key', label: '[k] Update Gemini API Key' },
                 { value: 'change_model', label: `[m] Change Gemini Model (Current: ${config?.geminiModel || DEFAULT_MODEL})` },
+                ...(config?.geminiModel?.startsWith('gemini-') ? [
+                  { value: 'change_thinking', label: `[t] Change Thinking Power (Current: ${config?.defaultThinkingIntensity || 'none'})` }
+                ] : []),
                 { value: 'back', label: '[b] Back to Main Menu' }
               ]}
               onSelect={handleSettingsMenu}
@@ -71,6 +77,24 @@ export function SettingsView({
             items={models.map(m => ({ value: m.id, label: m.name }))}
             onSelect={handleSelectModel}
           />
+        </React.Fragment>
+      )}
+
+      {mode === 'SETTINGS_THINKING_SELECT' && (
+        <React.Fragment>
+          <Text>Select Default AI Thinking Power:</Text>
+          <Text color="gray">High power improves accuracy but adds significant latency.</Text>
+          <Box marginTop={1}>
+            <SelectInput
+              items={[
+                { value: 'none', label: 'None (Fast, direct patterns)' },
+                { value: 'low', label: 'Low' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'high', label: 'High (Maximum reasoning)' }
+              ]}
+              onSelect={handleSelectThinking}
+            />
+          </Box>
         </React.Fragment>
       )}
     </Box>

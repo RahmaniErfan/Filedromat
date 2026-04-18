@@ -3,8 +3,8 @@ import { google } from '@ai-sdk/google';
 import { anthropic } from '@ai-sdk/anthropic';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import { join, resolve } from 'node:path';
-import type { FileMetadata, ActionPlan, AIModel, HistoryItem } from '../../types/index.js';
+import { join, resolve, relative } from 'node:path';
+import type { FileMetadata, ActionPlan, AIModel, HistoryItem, ThinkingIntensity } from '../../types/index.js';
 import { generateOrganizationPrompt, generateRefinementSystemPrompt } from './prompts.js';
 import { AIError, ConfigError } from '../errors/ai.js';
 
@@ -134,6 +134,49 @@ function getModel(modelId: string) {
 }
 
 /**
+ * Maps Filedromat's simplified Intensity to model-specific thinking parameters.
+ */
+function getThinkingConfig(modelId: string, intensity: ThinkingIntensity) {
+  if (intensity === 'none') {
+    if (modelId.includes('gemini-3')) return { level: 'minimal' as const };
+    if (modelId.includes('gemini-') || modelId.includes('claude-3-7')) return { budget: 0 };
+    return undefined;
+  }
+
+  const isGemini3 = modelId.includes('gemini-3');
+  const isGemini = modelId.includes('gemini-');
+
+  if (isGemini) {
+    if (isGemini3) {
+      const levelMap: Record<string, 'low' | 'medium' | 'high'> = {
+        low: 'low',
+        medium: 'medium',
+        high: 'high'
+      };
+      return { level: levelMap[intensity] || 'low' };
+    } else {
+      const budgetMap: Record<string, number> = {
+        low: 1024,
+        medium: 4096,
+        high: -1 // Dynamic
+      };
+      return { budget: budgetMap[intensity] || 1024 };
+    }
+  }
+
+  if (modelId.includes('claude-3-7')) {
+    const budgetMap: Record<string, number> = {
+      low: 1024,
+      medium: 4096,
+      high: 16384
+    };
+    return { budget: budgetMap[intensity] || 1024 };
+  }
+
+  return undefined;
+}
+
+/**
  * Legacy wrapper for fetchLiveModels (Google).
  */
 export async function listModels(apiKey: string): Promise<{ name: string; displayName: string }[]> {
@@ -142,17 +185,21 @@ export async function listModels(apiKey: string): Promise<{ name: string; displa
 }
 
 /**
+ * Helper to identify the "Jail" (boundary folder) for a file.
+ * Returns the top-level directory name relative to targetDir, or '/' if in root.
+ */
+function getJailPath(relPath: string | undefined): string {
+  if (!relPath) return '/';
+  const parts = relPath.split(/[/\\]/);
+  // If no directory parts, it's at the root
+  if (parts.length <= 1) return '/';
+  // The first part is the top-level directory (the jail)
+  return parts[0];
+}
+
+/**
  * Proposes an initial organization plan for a list of files.
- * Uses a sliding batch system to handle large directories within context limits.
- * 
- * @param files - Metadata of files to be organized.
- * @param targetDir - The root directory where organization will happen.
- * @param modelId - The AI model to use for analysis.
- * @param instructions - Optional user-provided custom organization rules.
- * @param parallelCalls - Number of batches to process concurrently.
- * @param fallbackModelId - Optional fallback model if the primary fails.
- * @returns A promise resolving to the final ActionPlan.
- * @throws {AIError} If processing fails or quota is exceeded.
+ * Implements "Root Boundary Enforcement" (The Jail).
  */
 export async function proposeOrganization(
   files: FileMetadata[], 
@@ -160,80 +207,114 @@ export async function proposeOrganization(
   modelId: string = 'gemini-2.0-flash',
   instructions: string = '',
   parallelCalls: number = 3,
-  fallbackModelId?: string
+  fallbackModelId?: string,
+  enforceBoundaries: boolean = true,
+  thinkingIntensity: ThinkingIntensity = 'none'
 ): Promise<ActionPlan> {
-  const BATCH_SIZE = 50;
-  const chunkedFiles: FileMetadata[][] = [];
-  for (let i = 0; i < files.length; i += BATCH_SIZE) {
-    chunkedFiles.push(files.slice(i, i + BATCH_SIZE));
+  // 1. Group files by their Jail Boundary
+  const groups = new Map<string, FileMetadata[]>();
+  for (const file of files) {
+    const jail = enforceBoundaries ? getJailPath(file.relPath) : '/';
+    if (!groups.has(jail)) groups.set(jail, []);
+    groups.get(jail)!.push(file);
   }
- 
+
   const allAbsoluteActions: any[] = [];
   const planSummaries: string[] = [];
- 
-  // Process in parallel batches of size `parallelCalls`
-  for (let i = 0; i < chunkedFiles.length; i += parallelCalls) {
-    const currentBatch = chunkedFiles.slice(i, i + parallelCalls);
- 
-    const results = await Promise.all(
-      currentBatch.map(async (chunk) => {
-        const prompt = generateOrganizationPrompt(chunk, targetDir, instructions);
- 
-        try {
-          const runTask = async (id: string) => {
-            return await generateObject({
-              model: getModel(id),
-              schema: z.object({
-                planSummary: z.string().describe('A brief 1-sentence summary of the folder structures you created.'),
-                actions: z.array(z.object({
-                  fileName: z.string().describe('The name of the file being moved'),
-                  targetPath: z.string().describe('The relative destination FOLDER path from the target directory (e.g. "Documents/PDFs")'),
-                  reason: z.string().describe('Short reason for the categorization')
-                }))
-              }),
-              prompt: prompt,
-            });
-          };
 
+  // 2. Process each jail group
+  for (const [jailName, jailFiles] of groups.entries()) {
+    const BATCH_SIZE = 50;
+    const chunkedFiles: FileMetadata[][] = [];
+    for (let i = 0; i < jailFiles.length; i += BATCH_SIZE) {
+      chunkedFiles.push(jailFiles.slice(i, i + BATCH_SIZE));
+    }
+
+    // Process chunks within this jail
+    for (let i = 0; i < chunkedFiles.length; i += parallelCalls) {
+      const currentBatch = chunkedFiles.slice(i, i + parallelCalls);
+  
+      const results = await Promise.all(
+        currentBatch.map(async (chunk) => {
+          const prompt = generateOrganizationPrompt(chunk, targetDir, jailName, instructions);
+  
           try {
-            const result = await runTask(modelId);
-            return { chunk, result };
-          } catch (error: any) {
-            if (fallbackModelId && fallbackModelId !== modelId) {
-              const result = await runTask(fallbackModelId);
-              return { chunk, result };
+            const runTask = async (id: string) => {
+              return await generateObject({
+                model: getModel(id),
+                schema: z.object({
+                  planSummary: z.string().describe('A brief 1-sentence summary of the folder structures you created.'),
+                  actions: z.array(z.object({
+                    fileName: z.string().describe('The name of the file being moved'),
+                    targetPath: z.string().describe('The relative destination FOLDER path from the target directory (e.g. "Documents/PDFs")'),
+                    reason: z.string().describe('Short reason for the categorization')
+                  }))
+                }),
+                prompt: prompt,
+                thinking: getThinkingConfig(id, thinkingIntensity)
+              } as any) as { object: { planSummary: string; actions: any[] } };
+            };
+  
+            try {
+              const result = await runTask(modelId);
+              console.log(`[AI Response] (${jailName}): ${result.object.planSummary}`);
+              console.log(`[AI Actions] ${JSON.stringify(result.object.actions, null, 2)}`);
+              return { chunk, result, jailName };
+            } catch (error: any) {
+              if (fallbackModelId && fallbackModelId !== modelId) {
+                console.warn(`[AI Error] Primary model failed, falling back to ${fallbackModelId}: ${error.message}`);
+                const result = await runTask(fallbackModelId);
+                return { chunk, result, jailName };
+              }
+              throw error;
             }
-            throw error;
+          } catch (error: any) {
+            throw new AIError(`AI Analysis Failed for jail "${jailName}": ${error.message}`);
           }
-        } catch (error: any) {
-          if (error.message?.includes('quota')) {
-            throw new AIError('AI API Quota exceeded. Please try again later or check your plan.', 'QUOTA_EXCEEDED');
+        })
+      );
+  
+      for (const { chunk, result, jailName } of results) {
+        const { object } = result;
+  
+        const validatedActions = object.actions.map(action => {
+          const originalFile = chunk.find(f => f.name === action.fileName);
+          if (!originalFile) return null;
+
+          const sourcePath = originalFile.path;
+          
+          // PATH SANITIZER: Strip filename from targetPath if AI accidentally included it
+          let sanitizedPath = action.targetPath.replace(/\\/g, '/').replace(/\/$/, '');
+          const fileName = action.fileName;
+          if (sanitizedPath.endsWith(`/${fileName}`)) {
+            sanitizedPath = sanitizedPath.slice(0, -(fileName.length + 1)) || '/';
+          } else if (sanitizedPath === fileName) {
+            sanitizedPath = '/';
           }
-          if (error.message?.includes('API key')) {
-            throw new ConfigError('Invalid AI API Key. Please check your config.');
+
+          const absoluteTargetPath = join(resolve(targetDir), sanitizedPath, action.fileName);
+
+          // DETERMINISTIC GUARDRAIL
+          if (jailName !== '/') {
+            const resolvedJail = join(resolve(targetDir), jailName);
+            const relativeToJail = relative(resolvedJail, absoluteTargetPath);
+            // If it starts with '..' it escaped the jail
+            if (relativeToJail.startsWith('..') || relativeToJail.startsWith('/') || relativeToJail.startsWith('\\')) {
+              console.warn(`[Guardrail] Blocked attempt to move ${action.fileName} out of jail ${jailName}`);
+              return null;
+            }
           }
-          throw new AIError(`AI Analysis Failed: ${error.message}`);
-        }
-      })
-    );
- 
-    for (const { chunk, result } of results) {
-      const { object } = result;
- 
-      const absoluteActions = object.actions.map(action => {
-        const originalFile = chunk.find(f => f.name === action.fileName);
-        const sourcePath = originalFile ? originalFile.path : join(targetDir, action.fileName);
-        const absoluteTargetPath = join(resolve(targetDir), action.targetPath, action.fileName);
- 
-        return {
-          sourcePath,
-          targetPath: absoluteTargetPath,
-          reason: action.reason
-        };
-      });
- 
-      planSummaries.push(object.planSummary);
-      allAbsoluteActions.push(...absoluteActions);
+
+          return {
+            sourcePath,
+            targetPath: absoluteTargetPath,
+            reason: action.reason
+          };
+        }).filter(Boolean);
+  
+        planSummaries.push(object.planSummary);
+        allAbsoluteActions.push(...validatedActions);
+      }
     }
   }
 
@@ -244,7 +325,7 @@ export async function proposeOrganization(
     try {
       const { text } = await generateText({
         model: google(modelId),
-        prompt: `You are an AI assistant helping to organize files. A large directory was processed in batches. Here are the summaries of what happened in each batch:\n${planSummaries.map(s => `- ${s}`).join('\n')}\nSynthesize these into a single, concise 1-sentence executive summary describing the overall organization strategy.`
+        prompt: `You are an AI assistant helping to organize files. A directory was processed in batches by boundary folders. Here are the summaries of what happened:\n${planSummaries.map(s => `- ${s}`).join('\n')}\nSynthesize these into a single, concise 1-sentence executive summary describing the overall organization strategy.`
       });
       finalSummary = text.trim();
     } catch (e) {
@@ -264,16 +345,7 @@ export async function proposeOrganization(
 
 /**
  * Refines an existing organization plan based on user feedback.
- * 
- * @param files - Metadata of files in the current context.
- * @param targetDir - The root directory of the organization.
- * @param previousPlan - The plan currently being reviewed.
- * @param feedback - Natural language feedback from the user.
- * @param modelId - The AI model to use for refinement.
- * @param history - Conversation history for multi-turn refinement.
- * @param parallelCalls - Number of batches to process concurrently.
- * @param fallbackModelId - Optional fallback model if the primary fails.
- * @returns A promise resolving to the updated ActionPlan.
+ * Implements "Root Boundary Enforcement" (The Jail).
  */
 export async function refineOrganization(
   files: FileMetadata[],
@@ -283,16 +355,20 @@ export async function refineOrganization(
   modelId: string = 'gemini-2.0-flash',
   history: HistoryItem[] = [],
   parallelCalls: number = 3,
-  fallbackModelId?: string
+  fallbackModelId?: string,
+  enforceBoundaries: boolean = true,
+  thinkingIntensity: ThinkingIntensity = 'none'
 ): Promise<ActionPlan> {
   const systemPrompt = generateRefinementSystemPrompt(targetDir);
  
-  const BATCH_SIZE = 50;
-  const chunkedFiles: FileMetadata[][] = [];
-  for (let i = 0; i < files.length; i += BATCH_SIZE) {
-    chunkedFiles.push(files.slice(i, i + BATCH_SIZE));
+  // 1. Group files by their Jail Boundary
+  const groups = new Map<string, FileMetadata[]>();
+  for (const file of files) {
+    const jail = enforceBoundaries ? getJailPath(file.relPath) : '/';
+    if (!groups.has(jail)) groups.set(jail, []);
+    groups.get(jail)!.push(file);
   }
- 
+
   const allAbsoluteActions: any[] = [];
   const planSummaries: string[] = [];
  
@@ -303,93 +379,129 @@ export async function refineOrganization(
     content: h.content
   }));
  
-  // Process in parallel batches of size `parallelCalls`
-  for (let i = 0; i < chunkedFiles.length; i += parallelCalls) {
-    const currentBatch = chunkedFiles.slice(i, i + parallelCalls);
- 
-    const results = await Promise.all(
-      currentBatch.map(async (chunk) => {
-        // Filter previous actions specific to this chunk's files
-        const previousActionsRelative = previousPlan.actions
-          .filter(action => chunk.some(f => f.path === action.sourcePath))
-          .map(action => ({
-            fileName: action.sourcePath.split('/').pop(),
-            targetPath: action.targetPath.replace(resolve(targetDir) + '/', ''),
-            reason: action.reason
-          }));
- 
-        const fileContext = chunk.map(f => ({
-          name: f.name,
-          ext: f.extension,
-          size: f.size,
-          lastModified: typeof f.lastModified === 'string' ? f.lastModified : f.lastModified.toISOString(),
-          ...(f.contentSample ? { contentSample: f.contentSample } : {})
-        }));
- 
-        const messages: ModelMessage[] = [
-          ...historyMessages,
-          {
-            role: 'user',
-            content: `File List:\n${JSON.stringify(fileContext)}\n\nCurrent Plan:\n${JSON.stringify(previousActionsRelative)}\n\nUser Feedback: ${feedback}\n\nPlease update the organization plan based strictly on this feedback.`
-          }
-        ];
- 
-        try {
-          const runRefinement = async (id: string) => {
-            return await generateObject({
-              model: getModel(id),
-              schema: z.object({
-                planSummary: z.string().describe('A brief 1-sentence summary of the folder structures you created.'),
-                actions: z.array(z.object({
-                  fileName: z.string().describe('The name of the file being moved'),
-                  targetPath: z.string().describe('The relative destination FOLDER path from the target directory (e.g. "Documents/PDFs")'),
-                  reason: z.string().describe('Short reason for the categorization')
-                }))
-              }),
-              system: systemPrompt,
-              messages: messages,
-            });
-          };
+  // 2. Process each jail group
+  for (const [jailName, jailFiles] of groups.entries()) {
+    const BATCH_SIZE = 50;
+    const chunkedFiles: FileMetadata[][] = [];
+    for (let i = 0; i < jailFiles.length; i += BATCH_SIZE) {
+      chunkedFiles.push(jailFiles.slice(i, i + BATCH_SIZE));
+    }
 
-          try {
-            const result = await runRefinement(modelId);
-            return { chunk, result };
-          } catch (error: any) {
-            if (fallbackModelId && fallbackModelId !== modelId) {
-              const result = await runRefinement(fallbackModelId);
-              return { chunk, result };
+    // Process chunks within this jail
+    for (let i = 0; i < chunkedFiles.length; i += parallelCalls) {
+      const currentBatch = chunkedFiles.slice(i, i + parallelCalls);
+  
+      const results = await Promise.all(
+        currentBatch.map(async (chunk) => {
+          // Filter previous actions specific to this chunk's files
+          const previousActionsRelative = previousPlan.actions
+            .filter(action => chunk.some(f => f.path === action.sourcePath))
+            .map(action => ({
+              fileName: action.sourcePath.split(/[/\\]/).pop(),
+              targetPath: action.targetPath.replace(resolve(targetDir) + '/', ''),
+              reason: action.reason
+            }));
+  
+          const fileContext = chunk.map(f => ({
+            name: f.name,
+            currentFolder: f.relPath ? f.relPath.split(/[/\\]/).slice(0, -1).join('/') || '/' : '/',
+            ext: f.extension,
+            size: f.size,
+            lastModified: typeof f.lastModified === 'string' ? f.lastModified : f.lastModified.toISOString(),
+            ...(f.contentSample ? { contentSample: f.contentSample } : {})
+          }));
+  
+          const isRootJail = jailName === '/';
+          const jailInstruction = isRootJail 
+            ? "You are organizing the main folder. You may move files into new or existing sub-folders." 
+            : `CRITICAL: You are refining the folder "${jailName}". EVERY targetPath you return MUST start with "${jailName}". You are FORBIDDEN from moving files out of this folder.`;
+
+          const messages: ModelMessage[] = [
+            ...historyMessages,
+            {
+              role: 'user',
+              content: `Boundary Folder: ${jailName}\n${jailInstruction}\n\nFile List:\n${JSON.stringify(fileContext)}\n\nCurrent Plan:\n${JSON.stringify(previousActionsRelative)}\n\nUser Feedback: ${feedback}\n\nPlease update the organization plan based strictly on this feedback.`
             }
-            throw error;
+          ];
+  
+          try {
+            const runRefinement = async (id: string) => {
+              return await generateObject({
+                model: getModel(id),
+                schema: z.object({
+                  planSummary: z.string().describe('A brief 1-sentence summary of the folder structures you created.'),
+                  actions: z.array(z.object({
+                    fileName: z.string().describe('The name of the file being moved'),
+                    targetPath: z.string().describe('The relative destination FOLDER path from the target directory (e.g. "Documents/PDFs")'),
+                    reason: z.string().describe('Short reason for the categorization')
+                  }))
+                }),
+                system: systemPrompt,
+                messages: messages,
+                thinking: getThinkingConfig(id, thinkingIntensity)
+              } as any) as { object: { planSummary: string; actions: any[] } };
+            };
+  
+            try {
+              const result = await runRefinement(modelId);
+              console.log(`[AI Refinement Response] (${jailName}): ${result.object.planSummary}`);
+              console.log(`[AI Refinement Actions] ${JSON.stringify(result.object.actions, null, 2)}`);
+              return { chunk, result, jailName };
+            } catch (error: any) {
+              if (fallbackModelId && fallbackModelId !== modelId) {
+                console.warn(`[AI Refinement Error] Primary model failed, falling back to ${fallbackModelId}: ${error.message}`);
+                const result = await runRefinement(fallbackModelId);
+                return { chunk, result, jailName };
+              }
+              throw error;
+            }
+          } catch (error: any) {
+            throw new AIError(`AI Refinement Failed for jail "${jailName}": ${error.message}`);
           }
-        } catch (error: any) {
-          if (error.message?.includes('quota')) {
-            throw new AIError('AI API Quota exceeded. Please try again later or check your plan.', 'QUOTA_EXCEEDED');
+        })
+      );
+  
+      for (const { chunk, result, jailName } of results) {
+        const { object } = result;
+  
+        const validatedActions = object.actions.map(action => {
+          const originalFile = chunk.find(f => f.name === action.fileName);
+          if (!originalFile) return null;
+
+          const sourcePath = originalFile.path;
+
+          // PATH SANITIZER: Strip filename from targetPath if AI accidentally included it
+          let sanitizedPath = action.targetPath.replace(/\\/g, '/').replace(/\/$/, '');
+          const fileName = action.fileName;
+          if (sanitizedPath.endsWith(`/${fileName}`)) {
+            sanitizedPath = sanitizedPath.slice(0, -(fileName.length + 1)) || '/';
+          } else if (sanitizedPath === fileName) {
+            sanitizedPath = '/';
           }
-          if (error.message?.includes('API key')) {
-            throw new ConfigError('Invalid AI API Key. Please check your config.');
+
+          const absoluteTargetPath = join(resolve(targetDir), sanitizedPath, action.fileName);
+
+          // DETERMINISTIC GUARDRAIL
+          if (jailName !== '/') {
+            const resolvedJail = join(resolve(targetDir), jailName);
+            const relativeToJail = relative(resolvedJail, absoluteTargetPath);
+            // If it starts with '..' it escaped the jail
+            if (relativeToJail.startsWith('..') || relativeToJail.startsWith('/') || relativeToJail.startsWith('\\')) {
+              console.warn(`[Guardrail] Blocked attempt to move ${action.fileName} out of jail ${jailName}`);
+              return null;
+            }
           }
-          throw new AIError(`AI Refinement Failed: ${error.message}`);
-        }
-      })
-    );
- 
-    for (const { chunk, result } of results) {
-      const { object } = result;
- 
-      const absoluteActions = object.actions.map(action => {
-        const originalFile = chunk.find(f => f.name === action.fileName);
-        const sourcePath = originalFile ? originalFile.path : join(targetDir, action.fileName);
-        const absoluteTargetPath = join(resolve(targetDir), action.targetPath, action.fileName);
- 
-        return {
-          sourcePath,
-          targetPath: absoluteTargetPath,
-          reason: action.reason
-        };
-      });
- 
-      planSummaries.push(object.planSummary);
-      allAbsoluteActions.push(...absoluteActions);
+
+          return {
+            sourcePath,
+            targetPath: absoluteTargetPath,
+            reason: action.reason
+          };
+        }).filter(Boolean);
+  
+        planSummaries.push(object.planSummary);
+        allAbsoluteActions.push(...validatedActions);
+      }
     }
   }
 
@@ -400,7 +512,7 @@ export async function refineOrganization(
     try {
       const { text } = await generateText({
         model: google(modelId),
-        prompt: `You are an AI assistant helping to organize files. A large directory was processed in batches. Here are the summaries of what happened in each batch:\n${planSummaries.map(s => `- ${s}`).join('\n')}\nSynthesize these into a single, concise 1-sentence executive summary describing the overall organization strategy.`
+        prompt: `You are an AI assistant helping to organize files. A large directory was processed in batches by boundary folders. Here are the summaries of what happened:\n${planSummaries.map(s => `- ${s}`).join('\n')}\nSynthesize these into a single, concise 1-sentence executive summary describing the overall organization strategy.`
       });
       finalSummary = text.trim();
     } catch (e) {

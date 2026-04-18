@@ -3,19 +3,33 @@ import type { FileMetadata } from '../../types/index.js';
 /**
  * Generates the prompt for Gemini to categorize files.
  */
-export function generateOrganizationPrompt(files: FileMetadata[], targetDir: string, customInstructions?: string): string {
+export function generateOrganizationPrompt(
+  files: FileMetadata[], 
+  targetDir: string, 
+  boundaryName: string,
+  customInstructions?: string
+): string {
   const fileContext = files.map(f => ({
     name: f.name,
+    currentFolder: f.relPath ? f.relPath.split(/[/\\]/).slice(0, -1).join('/') || '/' : '/',
     ext: f.extension,
     size: f.size,
     lastModified: typeof f.lastModified === 'string' ? f.lastModified : f.lastModified.toISOString(),
     ...(f.contentSample ? { contentSample: f.contentSample } : {})
   }));
 
+  const isRootJail = boundaryName === '/';
+
   const defaultInstructions = `
     - Group by type (e.g., Photos, Documents, Code, Archives).
     - If there are many related files, create sub-folders (e.g., Photos/2024, Photos/Vacation).
     - Be concise in your naming.
+    - ${isRootJail 
+        ? "You are organizing the main folder. You may move files into new or existing sub-folders." 
+        : `CRITICAL: You are organizing the folder "${boundaryName}". EVERY targetPath you return MUST start with "${boundaryName}". You are FORBIDDEN from moving files out of this folder.`}
+    - CRITICAL: Never include the filename in the targetPath. 
+      - CORRECT: { "fileName": "app.apk", "targetPath": "Software" }
+      - INCORRECT: { "fileName": "app.apk", "targetPath": "Software/app.apk" }
   `.trim();
 
   const activeInstructions = customInstructions && customInstructions.trim() !== '' 
@@ -24,7 +38,7 @@ export function generateOrganizationPrompt(files: FileMetadata[], targetDir: str
 
   // Prompt Sandwich Architecture
   
-  const systemRules = `You are Filedromat, an AI file system organizer. You must return valid JSON. You must not delete or rename files. Your target paths must be the relative FOLDER path (excluding filename) from ${targetDir}. Return a list of actions with 'fileName', 'targetPath', and 'reason'.`;
+  const systemRules = `You are Filedromat, an AI file system organizer. You must return valid JSON. You must not delete or rename files. Your target paths must be the relative FOLDER path (excluding filename) from the scan root. Return a list of actions with 'fileName', 'targetPath', and 'reason'.`;
   
   // The Meat (User Intent)
   const userIntent = `User Request:\nOrganize the provided files according to these instructions:\n${activeInstructions}`;
@@ -41,5 +55,9 @@ export function generateOrganizationPrompt(files: FileMetadata[], targetDir: str
 export function generateRefinementSystemPrompt(targetDir: string): string {
   return `You are Filedromat, an AI file system organizer. You must return valid JSON. You must not delete or rename files. Your target paths must be the relative FOLDER path (excluding filename) from ${targetDir}. Return a list of actions with 'fileName', 'targetPath', and 'reason'.
 
-If the user provides feedback on a previous plan, prioritize their specific corrections over your original logic. Only change the paths mentioned or affected by the feedback. Keep the rest of the plan as similar as possible.`;
+If the user provides feedback on a previous plan, prioritize their specific corrections over your original logic. Only change the paths mentioned or affected by the feedback. Keep the rest of the plan as similar as possible.
+
+CRITICAL: Never include the filename in the targetPath. 
+  - CORRECT: { "fileName": "app.apk", "targetPath": "Software" }
+  - INCORRECT: { "fileName": "app.apk", "targetPath": "Software/app.apk" }`;
 }

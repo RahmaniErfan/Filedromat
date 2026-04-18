@@ -31,6 +31,7 @@ type Mode =
   | 'SETTINGS_API_KEY'
   | 'SETTINGS_MODEL_LOADING'
   | 'SETTINGS_MODEL_SELECT'
+  | 'SETTINGS_THINKING_SELECT'
   | 'DONE';
 
 export function App() {
@@ -43,6 +44,8 @@ export function App() {
   // Organize state
   const [targetPath, setTargetPath] = useState(process.cwd());
   const [deepWash, setDeepWash] = useState(false);
+  const [enforceBoundaries, setEnforceBoundaries] = useState(true);
+  const [thinkingIntensity, setThinkingIntensity] = useState<'none' | 'low' | 'medium' | 'high'>('none');
   const [maxDepth, setMaxDepth] = useState(1);
   const [scannedFiles, setScannedFiles] = useState<FileMetadata[]>([]);
   const [promptInstructions, setPromptInstructions] = useState('');
@@ -95,8 +98,10 @@ export function App() {
     setMode('ORGANIZE_OPTIONS');
   };
 
-  const submitScan = async (options: { deepWash: boolean; maxDepth: number }) => {
+  const submitScan = async (options: { deepWash: boolean; enforceBoundaries: boolean; maxDepth: number; thinkingIntensity: 'none' | 'low' | 'medium' | 'high' }) => {
     setDeepWash(options.deepWash);
+    setEnforceBoundaries(options.enforceBoundaries);
+    setThinkingIntensity(options.thinkingIntensity);
     setMaxDepth(options.maxDepth);
     setMode('ORGANIZE_SCANNING');
     try {
@@ -126,7 +131,7 @@ export function App() {
       const apiKey = config?.geminiApiKey || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
       process.env.GOOGLE_GENERATIVE_AI_API_KEY = apiKey;
       
-      const newPlan = await refineOrganization(scannedFiles, resolve(targetPath), plan!, feedback, modelId);
+      const newPlan = await refineOrganization(scannedFiles, resolve(targetPath), plan!, feedback, modelId, [], 3, undefined, enforceBoundaries, config?.defaultThinkingIntensity || 'none');
       setPlan(newPlan);
       setMode('ORGANIZE_CONFIRM');
     } catch (e: any) {
@@ -143,7 +148,7 @@ export function App() {
           const apiKey = config?.geminiApiKey || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
           process.env.GOOGLE_GENERATIVE_AI_API_KEY = apiKey;
           
-          const p = await proposeOrganization(scannedFiles, resolve(targetPath), modelId, promptInstructions);
+          const p = await proposeOrganization(scannedFiles, resolve(targetPath), modelId, promptInstructions, 3, undefined, enforceBoundaries, config?.defaultThinkingIntensity || 'none');
           setPlan(p);
           setMode('ORGANIZE_CONFIRM');
         } catch (e: any) {
@@ -188,6 +193,8 @@ export function App() {
         return;
       }
       setMode('SETTINGS_MODEL_LOADING');
+    } else if (item.value === 'change_thinking') {
+      setMode('SETTINGS_THINKING_SELECT');
     } else if (item.value === 'back') {
       setMode('MAIN_MENU');
     }
@@ -228,6 +235,14 @@ export function App() {
     await saveConfig(newConfig);
     setConfig(newConfig);
     setError(`Default model set to ${item.value}`);
+    setMode('SETTINGS_MENU');
+  };
+
+  const handleSelectThinking = async (item: any) => {
+    const newConfig = { ...config, defaultThinkingIntensity: item.value };
+    await saveConfig(newConfig);
+    setConfig(newConfig);
+    setError(`Machine Thinking Power set to ${item.value}`);
     setMode('SETTINGS_MENU');
   };
 
@@ -362,6 +377,7 @@ export function App() {
                 models={models}
                 handleSettingsMenu={handleSettingsMenu}
                 handleSelectModel={handleSelectModel}
+                handleSelectThinking={handleSelectThinking}
               />
             )}
           </Box>

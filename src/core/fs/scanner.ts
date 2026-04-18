@@ -1,5 +1,5 @@
 import { readdir, stat } from 'node:fs/promises';
-import { join, extname } from 'node:path';
+import { join, extname, relative } from 'node:path';
 import { open, readFile } from 'node:fs/promises';
 import type { FileMetadata } from '../../types/index.js';
 import { FileSystemError } from '../errors/fs.js';
@@ -47,6 +47,7 @@ export async function scanDirectory(
             
             const fileMeta: FileMetadata = {
               path: entryPath,
+              relPath: relative(dirPath, entryPath),
               name: entry.name,
               extension: ext,
               size: stats.size,

@@ -12,9 +12,6 @@ interface SuccessViewProps {
 }
 
 export function SuccessView({ onReset, summary, result }: SuccessViewProps) {
-  const hasErrors = result && result.errorCount > 0;
-  const isPartialSuccess = hasErrors && result.successCount > 0;
-  const isTotalFailure = hasErrors && result.successCount === 0;
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] gap-8 page-enter text-center">
       <div className="relative">

@@ -88,12 +88,14 @@ export async function proposeOrganization(
   files: FileMetadata[],
   targetDir: string,
   modelId: string,
-  instructions: string
+  instructions: string,
+  enforceBoundaries: boolean = true,
+  thinkingIntensity: string = 'none'
 ): Promise<ActionPlan> {
   const res = await fetch('/api/propose', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ files, targetDir, modelId, instructions }),
+    body: JSON.stringify({ files, targetDir, modelId, instructions, enforceBoundaries, thinkingIntensity }),
   });
   return handleResponse(res);
 }
@@ -107,12 +109,14 @@ export async function refineOrganization(
   previousPlan: ActionPlan,
   feedback: string,
   modelId: string,
-  history: HistoryItem[]
+  history: HistoryItem[],
+  enforceBoundaries: boolean = true,
+  thinkingIntensity: string = 'none'
 ): Promise<ActionPlan> {
   const res = await fetch('/api/refine', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ files, targetDir, previousPlan, feedback, modelId, history }),
+    body: JSON.stringify({ files, targetDir, previousPlan, feedback, modelId, history, enforceBoundaries, thinkingIntensity }),
   });
   return handleResponse(res);
 }

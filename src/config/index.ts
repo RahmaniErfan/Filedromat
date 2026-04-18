@@ -12,6 +12,7 @@ export interface AppConfig {
   anthropicModel?: string;
   fallbackModelId?: string;
   parallelCalls?: number;
+  defaultThinkingIntensity?: 'none' | 'low' | 'medium' | 'high';
 }
 
 export const DEFAULT_MODEL = 'gemini-2.0-flash';

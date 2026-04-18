@@ -1,3 +1,5 @@
+export type ThinkingIntensity = 'none' | 'low' | 'medium' | 'high';
+
 export interface HistoryItem {
   id: string;
   role: 'user' | 'assistant';
@@ -8,6 +10,7 @@ export interface HistoryItem {
 
 export interface FileMetadata {
   path: string;
+  relPath?: string; // Relative path from scan target root
   name: string;
   extension: string;
   size: number;

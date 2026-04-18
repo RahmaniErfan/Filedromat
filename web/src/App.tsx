@@ -39,6 +39,7 @@ function App() {
   const [scanFiles, setScanFiles] = useState<FileMetadata[]>([]);
   const [scanProgress, setScanProgress] = useState(0);
   const [plan, setPlan] = useState<ActionPlan | null>(null);
+  const [enforceBoundaries, setEnforceBoundaries] = useState(true);
   const [isRefining, setIsRefining] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
 
@@ -53,9 +54,10 @@ function App() {
     setPhase('SCAN_CONFIG');
   };
 
-  const handleScanStart = async (options: { deepWash: boolean; maxDepth: number }) => {
+  const handleScanStart = async (options: { deepWash: boolean; enforceBoundaries: boolean; maxDepth: number }) => {
     setPhase('SCANNING');
     setScanProgress(0);
+    setEnforceBoundaries(options.enforceBoundaries);
     try {
       const files = await scanDirectory(targetPath, options.deepWash, options.maxDepth, setScanProgress);
       setScanFiles(files);
@@ -69,7 +71,14 @@ function App() {
   const handleInstructionsSubmit = async (instructions: string) => {
     setPhase('PROPOSING');
     try {
-      const p = await proposeOrganization(scanFiles, targetPath, config.geminiModel || 'gemini-2.5-flash', instructions);
+      const p = await proposeOrganization(
+        scanFiles, 
+        targetPath, 
+        config.geminiModel || 'gemini-2.0-flash', 
+        instructions, 
+        enforceBoundaries, 
+        config.defaultThinkingIntensity || 'none'
+      );
       setPlan(p);
       
       const newHistory: HistoryItem[] = [
@@ -115,8 +124,10 @@ function App() {
         targetPath, 
         plan, 
         feedback, 
-        config.geminiModel || 'gemini-2.5-flash', 
-        [...history, userHistoryItem]
+        config.geminiModel || 'gemini-2.0-flash', 
+        [...history, userHistoryItem],
+        enforceBoundaries,
+        config.defaultThinkingIntensity || 'none'
       );
       setPlan(p);
       

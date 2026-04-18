@@ -183,7 +183,7 @@ app.get('/api/suggestions', async (c) => {
  * Triggers the AI to analyze scanned files and propose a new directory structure.
  */
 app.post('/api/propose', async (c) => {
-  const { files, targetDir, modelId, instructions } = await c.req.json();
+  const { files, targetDir, modelId, instructions, enforceBoundaries, thinkingIntensity } = await c.req.json();
   try {
     const config = await loadConfig();
     if (config?.geminiApiKey) {
@@ -192,14 +192,16 @@ app.post('/api/propose', async (c) => {
     if (config?.anthropicApiKey) {
       process.env.ANTHROPIC_API_KEY = config.anthropicApiKey;
     }
-    
+
     const plan = await proposeOrganization(
       files, 
       resolve(targetDir), 
       modelId, 
       instructions, 
       config?.parallelCalls,
-      config?.fallbackModelId
+      config?.fallbackModelId,
+      enforceBoundaries,
+      thinkingIntensity
     );
     return c.json(plan);
   } catch (e: any) {
@@ -212,26 +214,28 @@ app.post('/api/propose', async (c) => {
  * Sends user feedback to the AI to tweak an existing organization plan.
  */
 app.post('/api/refine', async (c) => {
-    const { files, targetDir, previousPlan, feedback, modelId, history } = await c.req.json();
-    try {
-      const config = await loadConfig();
-      if (config?.geminiApiKey) {
-        process.env.GOOGLE_GENERATIVE_AI_API_KEY = config.geminiApiKey;
-      }
-      if (config?.anthropicApiKey) {
-        process.env.ANTHROPIC_API_KEY = config.anthropicApiKey;
-      }
-  
-      const plan = await refineOrganization(
-        files, 
-        resolve(targetDir), 
-        previousPlan, 
-        feedback, 
-        modelId, 
-        history, 
-        config?.parallelCalls,
-        config?.fallbackModelId
-      );
+  const { files, targetDir, previousPlan, feedback, modelId, history, enforceBoundaries, thinkingIntensity } = await c.req.json();
+  try {
+    const config = await loadConfig();
+    if (config?.geminiApiKey) {
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY = config.geminiApiKey;
+    }
+    if (config?.anthropicApiKey) {
+      process.env.ANTHROPIC_API_KEY = config.anthropicApiKey;
+    }
+
+    const plan = await refineOrganization(
+      files, 
+      resolve(targetDir), 
+      previousPlan, 
+      feedback, 
+      modelId, 
+      history, 
+      config?.parallelCalls,
+      config?.fallbackModelId,
+      enforceBoundaries,
+      thinkingIntensity
+    );
     return c.json(plan);
   } catch (e: any) {
     return c.json({ error: e.message }, 500);

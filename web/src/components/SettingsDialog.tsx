@@ -12,8 +12,10 @@ import {
   Zap, 
   Settings2, 
   Activity, 
-  Info
+  Info,
+  Sparkles
 } from 'lucide-react';
+import { cn } from '../lib/utils';
 import { fetchModels } from '../lib/api';
 import type { AIModel } from '../../../src/types/index.js';
 
@@ -29,6 +31,7 @@ export function SettingsDialog({ config, onSave, onClose }: SettingsDialogProps)
   const [selectedModel, setSelectedModel] = useState(config.geminiModel || config.anthropicModel || 'gemini-2.0-flash');
   const [fallbackModelId, setFallbackModelId] = useState(config.fallbackModelId || '');
   const [parallelCalls, setParallelCalls] = useState(config.parallelCalls || 3);
+  const [defaultThinkingIntensity, setDefaultThinkingIntensity] = useState(config.defaultThinkingIntensity || 'none');
   
   const [geminiModels, setGeminiModels] = useState<AIModel[]>([]);
   const [anthropicModels, setAnthropicModels] = useState<AIModel[]>([]);
@@ -126,7 +129,8 @@ export function SettingsDialog({ config, onSave, onClose }: SettingsDialogProps)
       geminiModel: finalGeminiModel,
       anthropicModel: finalAnthropicModel,
       fallbackModelId: finalFallbackId,
-      parallelCalls: Number(parallelCalls)
+      parallelCalls: Number(parallelCalls),
+      defaultThinkingIntensity
     });
     setIsSaved(true);
     setTimeout(() => {
@@ -294,6 +298,47 @@ export function SettingsDialog({ config, onSave, onClose }: SettingsDialogProps)
                       Anthropic Claude
                     </button>
                   </div>
+
+                  {mainProvider === 'google' && (
+                    <div className="space-y-6 pb-10 border-b border-border/50 animate-in fade-in slide-in-from-top-4 duration-500 bg-primary/5 -mx-10 px-10 py-8">
+                      <div className="flex flex-col items-center text-center space-y-4">
+                        <div className="space-y-1.5">
+                          <h3 className="text-xl font-black tracking-tight flex items-center justify-center gap-3">
+                            <Sparkles className="w-6 h-6 text-primary" />
+                            Default Machine Reasoning
+                          </h3>
+                          <p className="text-sm text-muted-foreground/70 font-medium max-w-md">Set the baseline "Thinking Power" for all organization tasks.</p>
+                        </div>
+                        
+                        <div className="flex gap-2 p-1.5 bg-background/50 rounded-2xl border border-border/50 w-full max-w-md shadow-inner-sm">
+                          {['none', 'low', 'medium', 'high'].map((intensity) => (
+                            <Button
+                              key={intensity}
+                              variant={defaultThinkingIntensity === intensity ? 'default' : 'ghost'}
+                              className={cn(
+                                "flex-1 h-11 rounded-xl transition-all duration-300 font-bold text-xs capitalize",
+                                defaultThinkingIntensity === intensity ? "bg-white text-primary shadow-lg hover:bg-white scale-105" : "text-muted-foreground hover:bg-primary/5"
+                              )}
+                              onClick={() => setDefaultThinkingIntensity(intensity as any)}
+                            >
+                              {intensity}
+                            </Button>
+                          ))}
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                          <Badge variant="outline" className="font-bold uppercase tracking-widest text-[10px] bg-primary/10 text-primary border-primary/20 px-3 py-1">
+                            {defaultThinkingIntensity === 'none' ? 'Standard Protocol' : `${defaultThinkingIntensity} intensity reasoning`}
+                          </Badge>
+                          <p className="text-[11px] font-medium text-muted-foreground/80 italic">
+                            {defaultThinkingIntensity === 'none' 
+                              ? "Fast, direct folding. Best for clear, simple file loads." 
+                              : "Increases organization accuracy by allowing the AI to 'reason' before proposing moves. Adds latency per load."}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {(mainProvider === 'google' ? isLoadingGemini : isLoadingAnthropic) ? (
@@ -352,7 +397,8 @@ export function SettingsDialog({ config, onSave, onClose }: SettingsDialogProps)
                       </div>
                     )}
                   </div>
-                </div>
+
+                  </div>
 
                 {/* Fallback Config */}
                 <div className="space-y-6 pt-10 border-t border-border/50">
