@@ -245,8 +245,8 @@ app.post('/api/refine', async (c) => {
 app.post('/api/execute', async (c) => {
   const plan = await c.req.json();
   try {
-    await executePlan(plan);
-    return c.json({ success: true });
+    const results = await executePlan(plan);
+    return c.json({ success: true, results });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
   }

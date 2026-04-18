@@ -139,7 +139,13 @@ function App() {
   const handleExecute = async () => {
     if (!plan) return;
     try {
-      await executePlan(plan);
+      const response = await executePlan(plan);
+      if (response.results) {
+        setPlan({
+          ...plan,
+          result: response.results
+        });
+      }
       setPhase('DONE');
     } catch (e: any) {
       alert(`Execution failed: ${e.message}`);
@@ -262,7 +268,7 @@ function App() {
           <SuccessView 
             onReset={() => setPhase('LOBBY')} 
             summary={plan?.summary} 
-            count={plan?.actions.length} 
+            result={plan?.result}
           />
         )}
       </div>

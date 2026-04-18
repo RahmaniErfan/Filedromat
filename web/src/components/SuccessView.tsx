@@ -3,13 +3,18 @@ import { Button } from './ui/button';
 import { CheckCircle2, PartyPopper, RefreshCcw, Home, Sparkles } from 'lucide-react';
 import { Badge } from './ui/badge';
 
+import type { ExecutionSummary } from '../../../src/types/index.js';
+
 interface SuccessViewProps {
   onReset: () => void;
   summary?: string;
-  count?: number;
+  result?: ExecutionSummary;
 }
 
-export function SuccessView({ onReset, summary, count }: SuccessViewProps) {
+export function SuccessView({ onReset, summary, result }: SuccessViewProps) {
+  const hasErrors = result && result.errorCount > 0;
+  const isPartialSuccess = hasErrors && result.successCount > 0;
+  const isTotalFailure = hasErrors && result.successCount === 0;
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] gap-8 page-enter text-center">
       <div className="relative">
@@ -32,23 +37,43 @@ export function SuccessView({ onReset, summary, count }: SuccessViewProps) {
           The machine has completed its cycle.
         </p>
 
-        {(summary || count) && (
-          <div className="bg-primary/5 border border-primary/10 rounded-2xl p-6 mt-6 animate-in zoom-in-95 duration-500 delay-200">
+        {result && (
+          <div className="bg-primary/5 border border-primary/10 rounded-2xl p-6 mt-6 animate-in zoom-in-95 duration-500 delay-200 w-full">
             <h3 className="text-xs font-bold uppercase tracking-widest text-primary/60 mb-4">Machine Recap</h3>
             <div className="space-y-4">
-              {count !== undefined && (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="h-px bg-primary/10 flex-1" />
-                  <Badge variant="outline" className="bg-white/50 px-3 py-1 text-sm font-semibold text-primary border-primary/20">
-                    {count} Files Laundered
+              <div className="flex items-center justify-center gap-4">
+                <div className="flex flex-col items-center">
+                  <Badge variant="outline" className="bg-green-500/10 px-3 py-1 text-sm font-semibold text-green-600 border-green-500/20">
+                    {result.successCount} Folded
                   </Badge>
-                  <div className="h-px bg-primary/10 flex-1" />
                 </div>
-              )}
+                {result.errorCount > 0 && (
+                  <div className="flex flex-col items-center">
+                    <Badge variant="outline" className="bg-destructive/10 px-3 py-1 text-sm font-semibold text-destructive border-destructive/20">
+                      {result.errorCount} Issues
+                    </Badge>
+                  </div>
+                )}
+              </div>
+              
               {summary && (
-                <p className="text-sm italic font-medium text-primary leading-relaxed px-4">
+                <p className="text-sm italic font-medium text-primary leading-relaxed px-4 pt-2 border-t border-primary/10">
                   "{summary}"
                 </p>
+              )}
+
+              {result.errors.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-primary/10 text-left max-h-40 overflow-y-auto custom-scrollbar">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-destructive mb-2">Error Log:</p>
+                  <ul className="space-y-2">
+                    {result.errors.map((err, idx) => (
+                      <li key={idx} className="text-[11px] leading-tight text-muted-foreground bg-destructive/5 p-2 rounded-lg border border-destructive/10">
+                        <span className="font-bold text-destructive brick">ERROR:</span> {err.message}
+                        <div className="opacity-60 truncate mt-1">File: {err.path}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
           </div>

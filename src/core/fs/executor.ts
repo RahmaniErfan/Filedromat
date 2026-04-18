@@ -1,6 +1,6 @@
-import { rename, mkdir } from 'node:fs/promises';
+import { rename, mkdir, access } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { ActionPlan } from '../../types/index.js';
+import type { ActionPlan, ExecutionSummary } from '../../types/index.js';
 import { FileSystemError } from '../errors/fs.js';
 
 /**
@@ -8,20 +8,44 @@ import { FileSystemError } from '../errors/fs.js';
  * Creates target directories recursively if they don't exist.
  * 
  * @param plan - The ActionPlan containing the list of source and target paths.
- * @returns A promise that resolves when all file operations are complete.
- * @throws {FileSystemError} If a directory cannot be created or a file cannot be moved.
+ * @returns A promise that resolves to an ExecutionSummary.
  */
-export async function executePlan(plan: ActionPlan): Promise<void> {
+export async function executePlan(plan: ActionPlan): Promise<ExecutionSummary> {
+  const summary: ExecutionSummary = {
+    successCount: 0,
+    errorCount: 0,
+    errors: []
+  };
+
   for (const action of plan.actions) {
     try {
-      // Ensure the target directory exists
+      // 1. Verify source existence
+      try {
+        await access(action.sourcePath);
+      } catch (e) {
+        throw new Error('File missing or inaccessible');
+      }
+
+      // 2. Ensure the target directory exists
       await mkdir(dirname(action.targetPath), { recursive: true });
       
-      // Move the file
+      // 3. Move the file
       await rename(action.sourcePath, action.targetPath);
+      
+      action.status = 'success';
+      summary.successCount++;
       console.log(`Moved: ${action.sourcePath} -> ${action.targetPath}`);
     } catch (error: any) {
-      throw new FileSystemError(`Failed to move ${action.sourcePath} to ${action.targetPath}: ${error.message}`);
+      action.status = 'error';
+      action.error = error.message;
+      summary.errorCount++;
+      summary.errors.push({
+        path: action.sourcePath,
+        message: error.message
+      });
+      console.error(`Failed: ${action.sourcePath}. Reason: ${error.message}`);
     }
   }
+
+  return summary;
 }

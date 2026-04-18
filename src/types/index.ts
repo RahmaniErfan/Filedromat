@@ -21,6 +21,14 @@ export interface FileAction {
   sourcePath: string;
   targetPath: string;
   reason: string;
+  status?: 'pending' | 'success' | 'error';
+  error?: string;
+}
+
+export interface ExecutionSummary {
+  successCount: number;
+  errorCount: number;
+  errors: { path: string; message: string }[];
 }
 
 export interface ActionPlan {
@@ -30,6 +38,7 @@ export interface ActionPlan {
   actions: FileAction[];
   targetFolder?: string;
   summary?: string;
+  result?: ExecutionSummary;
 }
 
 export interface AIModel {
