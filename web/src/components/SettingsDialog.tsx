@@ -23,9 +23,10 @@ interface SettingsDialogProps {
   config: any;
   onSave: (config: any) => void;
   onClose: () => void;
+  defaultTab?: 'connection' | 'intelligence' | 'performance';
 }
 
-export function SettingsDialog({ config, onSave, onClose }: SettingsDialogProps) {
+export function SettingsDialog({ config, onSave, onClose, defaultTab = 'connection' }: SettingsDialogProps) {
   const [geminiApiKey, setGeminiApiKey] = useState(config.geminiApiKey || '');
   const [anthropicApiKey, setAnthropicApiKey] = useState(config.anthropicApiKey || '');
   const [selectedModel, setSelectedModel] = useState(config.geminiModel || config.anthropicModel || 'gemini-2.0-flash');
@@ -38,7 +39,7 @@ export function SettingsDialog({ config, onSave, onClose }: SettingsDialogProps)
   const [isLoadingGemini, setIsLoadingGemini] = useState(false);
   const [isLoadingAnthropic, setIsLoadingAnthropic] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<'connection' | 'intelligence' | 'performance'>('connection');
+  const [activeTab, setActiveTab] = useState<'connection' | 'intelligence' | 'performance'>(defaultTab);
   
   const [mainProvider, setMainProvider] = useState<'google' | 'anthropic'>(
     config.anthropicModel && !config.geminiModel ? 'anthropic' : 'google'

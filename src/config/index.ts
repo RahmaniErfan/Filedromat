@@ -17,6 +17,8 @@ export interface AppConfig {
 
 export const DEFAULT_MODEL = 'gemini-2.0-flash';
 
+export const DEFAULT_PARALLEL_CALLS = 3;
+
 /**
  * Ensures the config directory exists.
  */
@@ -30,9 +32,13 @@ export async function ensureConfigDir() {
 export async function loadConfig(): Promise<AppConfig | null> {
   try {
     const data = await readFile(CONFIG_FILE, 'utf-8');
-    return JSON.parse(data);
+    const config = JSON.parse(data);
+    return {
+      parallelCalls: DEFAULT_PARALLEL_CALLS,
+      ...config
+    };
   } catch {
-    return null;
+    return { parallelCalls: DEFAULT_PARALLEL_CALLS } as AppConfig;
   }
 }
 

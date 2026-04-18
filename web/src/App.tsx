@@ -34,6 +34,7 @@ function App() {
   const [phase, setPhase] = useState<Phase>('LOBBY');
   const [config, setConfig] = useState<any>({});
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'connection' | 'intelligence' | 'performance'>('connection');
   
   const [targetPath, setTargetPath] = useState('');
   const [scanFiles, setScanFiles] = useState<FileMetadata[]>([]);
@@ -48,6 +49,11 @@ function App() {
   }, []);
 
   const handleStart = () => setPhase('DIRECTORY_SELECT');
+  
+  const handleOpenSettings = (tab: 'connection' | 'intelligence' | 'performance' = 'connection') => {
+    setSettingsTab(tab);
+    setIsSettingsOpen(true);
+  };
   
   const handleDirectorySelect = (path: string) => {
     setTargetPath(path);
@@ -215,7 +221,7 @@ function App() {
           <Lobby 
             config={config} 
             onStart={handleStart} 
-            onSettings={() => setIsSettingsOpen(true)} 
+            onSettings={handleOpenSettings} 
           />
         )}
         
@@ -297,6 +303,7 @@ function App() {
           config={config} 
           onSave={handleConfigSave} 
           onClose={() => setIsSettingsOpen(false)} 
+          defaultTab={settingsTab}
         />
       )}
       

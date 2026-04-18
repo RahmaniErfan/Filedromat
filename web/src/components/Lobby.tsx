@@ -1,12 +1,12 @@
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Card } from './ui/card';
 import { Button } from './ui/button';
-import { Play, Settings, Binary } from 'lucide-react';
+import { Play, Settings, Binary, Zap } from 'lucide-react';
 import { Badge } from './ui/badge';
 
 interface LobbyProps {
   config: any;
   onStart: () => void;
-  onSettings: () => void;
+  onSettings: (tab?: 'connection' | 'intelligence' | 'performance') => void;
 }
 
 export function Lobby({ config, onStart, onSettings }: LobbyProps) {
@@ -95,22 +95,51 @@ export function Lobby({ config, onStart, onSettings }: LobbyProps) {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                 <div className={`p-2 rounded-xl ${isConfigured ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground/40'}`}>
-                  <Settings className="w-4 h-4 animate-spin-slow" />
-                 </div>
-                 <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest leading-none">
-                   {!isConfigured 
-                     ? 'API Encryption Keys Missing'
-                     : config.fallbackModelId 
-                       ? `Active Cluster: Resilient Mode (${config.fallbackModelId.toUpperCase()})` 
-                       : 'Standard Folding Protocol Active'}
-                 </p>
+            <div className="flex flex-col gap-4 border-t border-primary/5 pt-6">
+              {/* Performance Row */}
+              {isConfigured && (
+                <div className="flex items-center justify-between animate-in slide-in-from-left-4 duration-500">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl transition-all duration-500 bg-amber-500/10 text-amber-500 scale-110 relative">
+                      <Zap className="w-4 h-4 animate-zap" />
+                      <div className="absolute inset-0 bg-amber-400/20 blur-lg rounded-full animate-pulse" />
+                    </div>
+                    <p className="text-xs text-muted-foreground font-black uppercase tracking-widest leading-none">
+                      Cycle Intensity: {config.parallelCalls || 3} Parallel Tubs
+                    </p>
+                  </div>
+                  
+                  <button 
+                    onClick={() => onSettings('performance')}
+                    className="bg-amber-500/10 hover:bg-amber-500/20 text-amber-600/70 hover:text-amber-600 px-3 py-1 rounded-full border border-amber-500/20 transition-all active:scale-95 flex items-center gap-2 group shadow-sm hover:shadow-md"
+                  >
+                    <Settings className="w-3 h-3 group-hover:rotate-90 transition-transform" />
+                    <span className="text-[9px] font-black uppercase tracking-widest">Adjust for faster loads</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Status Row */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                   <div className={`p-2 rounded-xl transition-all duration-500 ${isConfigured ? 'bg-primary/10 text-primary scale-110' : 'bg-muted text-muted-foreground/40'}`}>
+                    <Settings className="w-4 h-4 animate-spin-slow" />
+                   </div>
+                   <div className="flex flex-col gap-1">
+                     <p className="text-xs text-muted-foreground font-black uppercase tracking-widest leading-none">
+                       {!isConfigured 
+                         ? 'API Encryption Keys Missing'
+                         : config.fallbackModelId 
+                           ? `Active Cluster: Resilient Mode (${config.fallbackModelId.toUpperCase()})` 
+                           : 'Standard Folding Protocol Active'}
+                     </p>
+                   </div>
+                </div>
+
+                <Badge variant="secondary" className="bg-primary/5 text-primary border-primary/10 font-bold uppercase text-[9px] whitespace-nowrap px-3">
+                  v2.0.4-LNDRY
+                </Badge>
               </div>
-              <Badge variant="secondary" className="bg-primary/5 text-primary border-primary/10 font-bold uppercase text-[9px]">
-                v2.0.4-LNDRY
-              </Badge>
             </div>
           </div>
         </Card>
@@ -122,7 +151,7 @@ export function Lobby({ config, onStart, onSettings }: LobbyProps) {
           <Play className="w-4 h-4 fill-current" />
           Start Full Wash
         </Button>
-        <Button variant="outline" size="lg" className="rounded-full px-8 gap-2 hover:bg-white transition-colors" onClick={onSettings}>
+        <Button variant="outline" size="lg" className="rounded-full px-8 gap-2 hover:bg-white transition-colors" onClick={() => onSettings()}>
           <Settings className="w-4 h-4" />
           Settings
         </Button>
