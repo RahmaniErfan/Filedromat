@@ -76,7 +76,7 @@ app.get('/api/models', async (c) => {
 app.get('/api/scan', async (c) => {
   const rawPath = c.req.query('path');
   const deepWash = c.req.query('deepWash') === 'true';
-  const maxDepth = parseInt(c.req.query('maxDepth') || '1');
+  const maxDepth = parseInt(c.req.query('maxDepth') || '0');
 
   if (!rawPath) return c.json({ error: 'Path is required' }, 400);
 

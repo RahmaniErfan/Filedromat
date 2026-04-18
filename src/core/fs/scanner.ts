@@ -12,7 +12,7 @@ const BATCH_SIZE = 50;
  * 
  * @param dirPath - The absolute path of the directory to scan.
  * @param deepWash - If true, reads the first 1000 characters of supported files (PDF, txt, etc.) to provide context for AI.
- * @param maxDepth - Maximum recursion depth (0 for current directory only).
+ * @param maxDepth - Maximum recursion depth (0 for current directory only, 1 for immediate subdirectories, etc).
  * @param currentDepth - Internal tracker for current recursion level.
  * @param onProgress - Optional callback triggered every time a new file is found.
  * @returns A promise resolving to an array of FileMetadata objects.
@@ -21,7 +21,7 @@ const BATCH_SIZE = 50;
 export async function scanDirectory(
   dirPath: string, 
   deepWash: boolean = false, 
-  maxDepth: number = 1, 
+  maxDepth: number = 0, 
   currentDepth: number = 0,
   onProgress?: (count: number) => void
 ): Promise<FileMetadata[]> {

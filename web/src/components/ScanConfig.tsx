@@ -51,7 +51,7 @@ export function ScanConfig({ onScan, onBack }: ScanConfigProps) {
                 <Label className="text-base font-semibold">Load Depth</Label>
               </div>
               <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-bold">
-                {maxDepth === 1 ? 'Surface Clean' : maxDepth === 5 ? 'Extreme Depth' : `${maxDepth} Layers`}
+                {maxDepth === 1 ? 'Surface Clean (Main Folder)' : maxDepth === 5 ? 'Extreme Recursion' : `Load Depth: ${maxDepth}`}
               </span>
             </div>
             
@@ -68,13 +68,15 @@ export function ScanConfig({ onScan, onBack }: ScanConfigProps) {
               ))}
             </div>
             <p className="text-xs text-muted-foreground text-center">
-              Higher depth recursively scans subdirectories. Use 1 for the current folder only.
+              {maxDepth === 1 
+                ? "Scans ONLY the files directly inside your selected folder." 
+                : `Scans files in the main folder and ${maxDepth - 1} level${maxDepth > 2 ? 's' : ''} of subdirectories.`}
             </p>
           </div>
         </CardContent>
         <CardFooter className="flex justify-between pt-4">
           <Button variant="ghost" onClick={onBack}>Change Path</Button>
-          <Button size="lg" className="rounded-full px-8 gap-2" onClick={() => onScan({ deepWash, maxDepth })}>
+          <Button size="lg" className="rounded-full px-8 gap-2" onClick={() => onScan({ deepWash, maxDepth: maxDepth - 1 })}>
             <Droplets className="w-4 h-4" />
             Start Cycle
             <ArrowRight className="w-4 h-4" />
