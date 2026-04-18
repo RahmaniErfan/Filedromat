@@ -175,17 +175,24 @@ function App() {
 
   const handleExport = async (format: 'json' | 'bash') => {
     if (!plan) return;
-    const result = await exportPlan(plan, format);
-    if (format === 'bash') {
-      const blob = new Blob([result as string], { type: 'text/plain' });
+    try {
+      const result = await exportPlan(plan, format);
+      
+      const content = format === 'json' ? JSON.stringify(result, null, 2) : (result as string);
+      const mimeType = format === 'json' ? 'application/json' : 'text/plain';
+      const filename = format === 'json' ? 'filedromat-plan.json' : 'filedromat-organize.sh';
+      
+      const blob = new Blob([content], { type: mimeType });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'filedromat-organize.sh';
+      a.download = filename;
+      document.body.appendChild(a);
       a.click();
-    } else {
-      console.log('Exported JSON:', result);
-      alert('Plan exported to console (JSON). Use Bash export to download a script.');
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert(`Export failed: ${e.message}`);
     }
   };
 

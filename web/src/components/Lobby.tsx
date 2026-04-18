@@ -34,7 +34,7 @@ export function Lobby({ config, onStart, onSettings }: LobbyProps) {
           Filedromat
         </h1>
         <p className="text-muted-foreground/80 text-lg font-medium">
-          The AI-powered <span className="text-primary font-bold">"File Laundry"</span> for your messy directories.
+          The AI-powered File Laundry for your messy directories.
         </p>
       </div>
 
