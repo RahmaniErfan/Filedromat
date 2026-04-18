@@ -52,7 +52,3 @@ npm run dev
 - **Networking**: No authentication is provided. Restrict access to localhost.
 - **Data**: Metadata and content samples are transmitted to AI providers for analysis.
 
-## License
-
-MIT
-
